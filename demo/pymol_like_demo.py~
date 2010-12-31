@@ -1,0 +1,132 @@
+#to launhc in ipython:
+# execfile("/Library/MGLTools/1.5.6.csv/MGLToolsPckgs/Pmv/hostappInterface/demo/pymol_like_demo.py")
+# from commandline :
+# blender155 -P blenderPmvScript.py
+# from blender :
+# in a text editor windows, open blenderPmvScript.py and then type Alt+P or or click run Python Script in Text menu
+#general import
+soft='blender'
+plugin=False
+if not plugin : 
+    import math
+    import sys,os
+    MGL_ROOT='/Library/MGLTools/1.5.6.csv/'#os.environ['MGL_ROOT']
+    sys.path[0]=(MGL_ROOT+'lib/python2.5/site-packages')
+    sys.path.append(MGL_ROOT+'lib/python2.5/site-packages/PIL')
+    sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
+    if soft == 'blender':
+        from Pmv.hostappInterface.blender.blenderAdaptor import blenderAdaptor as adaptor
+    elif soft=='c4d':
+        from Pmv.hostappInterface.cinema4d.c4dAdaptor import c4dAdaptor as adaptor
+    epmv = adaptor(debug=0)
+else :
+    if sotf == 'c4d':
+        import c4d
+        epmv = c4d.mv.values()[0]#[dname]
+self = epmv.mv
+from Pmv import hostappInterface
+plgDir = hostappInterface.__path__[0]
+from Pmv.hostappInterface import comput_util as util
+self.readMolecule(plgDir+'/demo/pymolpept.pdb')
+mol = self.Mols[0]
+mname = mol.name
+
+#MAKE THE REPRESNETATION
+self.displayLines("pymolpept")
+self.displaySticksAndBalls("pymolpept",sticksBallsLicorice='Sticks and Balls',
+                           cquality=0, bquality=0, cradius=0.2, only=False, 
+                           bRad=0.3, negate=False, bScale=1.0)
+self.colorByAtomType("pymolpept",['sticks','balls'])
+self.displayCPK("pymolpept")
+self.colorAtomsUsingDG("pymolpept",['cpk'])
+self.computeMSMS("pymolpept",surfName='MSMS-MOL')
+self.colorByResidueType("pymolpept",['MSMS-MOL'])
+self.displayExtrudedSS("pymolpept")
+self.colorBySecondaryStructure("pymolpept",['secondarystructure'])
+
+#CMS
+name='CoarseMS_'+mname
+parent=mol.geomContainer.masterGeom.obj 
+geom=epmv.coarseMolSurface(mol,[32,32,32],
+                           isovalue=7.1,resolution=-0.3,
+                           name=name)
+mol.geomContainer.geoms[name]=geom
+obj=epmv._createsNmesh(name,geom.getVertices(),None,
+                       geom.getFaces(),smooth=True)
+epmv._addObjToGeom(obj,geom)
+epmv._addObjectToScene(epmv._getCurrentScene(),
+                       obj[0],parent=parent)
+self.colorResiduesUsingShapely(mname, [name])
+
+
+#make a spline 
+name='spline'+mol.name
+atoms = mol.allAtoms.get("CA")
+atoms.sort()
+spline=epmv.helper.spline(name,atoms.coords)
+epmv._addObjectToScene(epmv._getCurrentScene(),spline,
+                       parent=mol.geomContainer.masterGeom.obj)
+                       
+#make a ribbon/ruban using soft loft modifier in c4d
+#in order to make a ribbon we need a spline, a 2dshape to extrude and a modifyer
+ruban = epmv._makeRibbon("ribbon"+mol.name,)
+
+nurb=epmv.helper.sweepnurbs("sweep"+mol.name)
+epmv._addObjectToScene(epmv._getCurrentScene(),nurb,
+                       parent=mol.geomContainer.masterGeom.obj)
+baseS=epmv._newEmpty("baseshape")
+epmv._addObjectToScene(epmv._getCurrentScene(),baseS)
+shape2d,array = epmv.helper.createShapes2D(doc=doc,parent=baseS)
+circle = array[0]
+epmv.helper.reparent(spline,nurb)
+epmv.helper.reparent(circle,nurb)
+epmv.helper.translateObj(spline,[0.,0.,0.],use_parent=False)
+
+#make the armature
+name='armature'+mol.name
+armature=epmv.helper.Armature(name,atoms,doc=epmv._getCurrentScene(),
+                              root=mol.geomContainer.masterGeom.obj)
+#make another spline
+
+#make the metaballs
+
+
+#make isocontour exple
+
+#MOVE THE OBJECT on a GRID 4*3
+center = mol.getCenter()
+radius = util.computeRadius(mol,center)
+ch=mol.chains[0]
+#define the geom to be translated
+lgeom=[[],[],[]]
+lgeom[0].append(epmv._getObject(mol.name+"_cloudds"))
+lgeom[0].append(epmv._getObject(ch.full_name()+'_line'))
+lgeom[0].append(epmv._getObject(mol.geomContainer.masterGeom.chains_obj[ch.name+"_balls"]))
+lgeom[0].append(epmv._getObject(mol.geomContainer.masterGeom.chains_obj[ch.name+"_cpk"]))
+
+lgeom[1].append(spline) #spline
+lgeom[1].append(epmv._getObject(mol.geomContainer.masterGeom.chains_obj[ch.name+"_ss"])) #cartoon
+lgeom[1].append(nurb) #ribbon : simple backbone trace
+lgeom[1].append(armature[0].get_up()) #bones ?
+
+lgeom[2].append(epmv._getObject('MSMS-MOL'+str(mol.name))) #MSMS
+lgeom[2].append(obj[0]) #CMS
+lgeom[2].append("") #Metaballs
+lgeom[2].append("") #isoContour
+
+print lgeom
+#move it according the grid rules :
+x = [center[0] - (3*radius),center[0] - (radius),center[0] + (radius),center[0] + (3*radius)]
+y = [center[1] + (3*radius),center[1],center[1]-(3*radius)]
+z = center[2]
+
+def position(lgeom,x,y,z):
+    for i in range(3):
+        for j in range(4):
+            print i,j
+            obj = lgeom[i][j]
+            #print obj
+            if obj != "" and obj != None:
+                coord= [x[j],y[i],z]
+                print obj
+                epmv.helper.translateObj(obj,coord,use_parent=False)

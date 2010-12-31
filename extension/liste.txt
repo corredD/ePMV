@@ -1,0 +1,2 @@
+#put your extension name and directory here
+modeller:/Library/modeller-9v8/modlib
