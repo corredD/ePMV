@@ -9,8 +9,7 @@ By enabling easy exchange of algorithms, ePMV can facilitate interdisciplinary r
 
 ePMV is include as a module in the PMV MGLToolsPckgs 1.5.6 [1] and thus doesn't require any additional download. Please click on the Installation link for instructions. ePMV plugins currently supports:
 
-    • Cinema4D 11.5 & 12™
-
+    • Cinema4D 12™
     • Blender 2.49
     • Maya 2011™
 
