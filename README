@@ -1,0 +1,25 @@
+ve developed an open-source plug-in, embedded Python Molecular Viewer (ePMV), that runs molecular modeling software directly inside of professional 3D animation applications (hosts) to provide simultaneous access the capabilities of all of the systems. Uniting host and scientific algorithms into a single interface allows users from varied backgrounds to assemble professional quality visuals and to perform computational experiments with relative ease. The combination provides:
+
+    • High quality rendering with shadows, global illumination, ambient occlusion, etc.
+    • Intuitive GUI workflows that help users set up animations ranging from easy turntable rotations to sophisticated mechanism of action movies
+    • Subcelluar modeling that allows users to illustrate or animate complex cell events in molecular detail by positioning objects with intuitive controls
+    • A common Python Platform that allows users to initiate sophisticated algorithms like molecular dynamics or docking energy calculations on the fly and to interoperate multiple algorithms at the same time on the same model 
+
+By enabling easy exchange of algorithms, ePMV can facilitate interdisciplinary research, smooth communication between broadly diverse specialties and provide a common platform to frame and visualize the increasingly detailed intersection(s) of cellular and molecular biology.
+
+ePMV is include as a module in the PMV MGLToolsPckgs 1.5.6 [1] and thus doesn't require any additional download. Please click on the Installation link for instructions. ePMV plugins currently supports:
+
+    • Cinema4D 11.5 & 12™
+
+    • Blender 2.49
+    • Maya 2011™
+
+With the help of developers like you, this list can easily extend to include Sketchup (PySup), 3D Studio Max (via Py3dsMax @Blur-dev), Houdini, RealFlow, SoftImage XSI (PySoftimage), and many others... 
+
+INSTALLATION
+- copy the plugin in the host 3d application plugin directory and run it
+- the plugin ask for the MGLTools parent directory (ie mgltools-1.5.6 or Download or ...)
+
+For more Detail see http://epmv.scripps.edu/
+
+
