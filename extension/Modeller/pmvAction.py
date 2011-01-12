@@ -9,6 +9,7 @@ from modeller.optimizers.actions import action
 from Pmv.moleculeViewer import EditAtomsEvent
 import modeller
 import Pmv.hostappInterface as epmv
+#event = EditAtomsEvent('coords', self.pmvModel.allAtoms)
 
 def setupMDL(env,name):
     from modeller.scripts import complete_pdb
