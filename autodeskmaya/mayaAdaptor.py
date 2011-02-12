@@ -262,7 +262,7 @@ class mayaAdaptor(epmvAdaptor):
         #problem, theses are only CA
         vt = []
         bones = mol.geomContainer.geoms["armature"][1]
-        vt = [self.helper.m2vec(self.helper.getJointPosition(j)) for j in bones]
+        vt = [self.helper.ToVec(self.helper.getJointPosition(j)) for j in bones]
 #        for join in bones:
 #            pos=join.GetMg().off
 #            vt.append(self.helper.vc4d(pos))
@@ -278,7 +278,7 @@ class mayaAdaptor(epmvAdaptor):
 #        spline = self.helper.getCurrentScene().SearchObject(name)
 #        points = spline.GetAllPoints()
     #    matr= mesh.GetMg()
-        vt = [self.helper.m2vec(points[x]) for x in range(points.length())]
+        vt = [self.helper.ToVec(points[x]) for x in range(points.length())]
         return vt
         
     def updateMolAtomCoordLines(self,mol,index=-1):
@@ -305,18 +305,6 @@ class mayaAdaptor(epmvAdaptor):
 #            masterCPK.SetMg(matr)
         return vt#updateMolAtomCoordCPK(mol,index=index)
         
-    def updateMolAtomCoordCPK(self,mol,index=-1):
-        #just need that cpk or the balls have been computed once..
-        #balls and cpk should be linked to have always same position
-        # let balls be dependant on cpk => contraints? or update
-        # the idea : spline/dynamic move link to cpl whihc control balls
-        # this should be the actual coordinate of the ligand
-        # what about the rc...
-        #should be faster using the fnTransform ?
-        vt = []
-        sph = mol.geomContainer.geoms['cpk'].obj
-        vt=[self.helper.m2vec(self.helper.getTranslation(x)) for x in sph]
-        return vt
         
     def createGUI(self):
         self.gui = epmvGui(epmv=self,rep='epmv')

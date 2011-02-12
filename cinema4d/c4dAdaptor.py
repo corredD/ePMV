@@ -216,7 +216,7 @@ class c4dAdaptor(epmvAdaptor):
 #                if n=='B' :
 #                    scale = 1.
 #                    spher[j][905]=c4d.Vector(float((1/sc)*scale),float((1/sc)*scale),float((1/sc)*scale))                #
-                spher[j].SetAbsPos(self.helper.c4dv(atC))
+                spher[j].SetAbsPos(self.helper.FromVec(atC))
                 texture = spher[j].MakeTag(c4d.Ttexture)
                 texture[1010] = self.helper.getMaterial(atN[0])
                 p = self.findatmParentHierarchie(at,n,hiera)
@@ -298,24 +298,7 @@ class c4dAdaptor(epmvAdaptor):
             masterCPK.SetMg(matr)
         return vt#updateMolAtomCoordCPK(mol,index=index)
         
-    def updateMolAtomCoordCPK(self,mol,index=-1):
-        #just need that cpk or the balls have been computed once..
-        #balls and cpk should be linked to have always same position
-        # let balls be dependant on cpk => contraints? or update
-        # the idea : spline/dynamic move link to cpl whihc control balls
-        # this should be the actual coordinate of the ligand
-        # what about the rc...
-        vt = []
-        sph = mol.geomContainer.geoms['cpk'].obj
-        vt = [self.helper.vc4d(self.helper.getObject(name).GetMg().off) for name in sph]
-#        for name in sph:
-#            o = self.helper.getObject(name)
-#            pos=o.GetMg().off
-#    #        pos=o.GetAbsPos()
-#            vt.append(self.helper.vc4d(pos))
-        print vt[0]
-        return vt
-#
+
 #    def display_CPK(self,mol,sel,display,needRedraw=False,quality=0,cpkRad=0.0,scaleFactor=1.0,useTree="default",dialog=None):
 #        sc = self.getCurrentScene()
 #        g = mol.geomContainer.geoms['cpk']

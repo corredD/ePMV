@@ -6,6 +6,8 @@
 #
 #
 #############################################################################
+import os
+
 import ePMV
 from ePMV.epmvAdaptor import epmvAdaptor
 from ePMV.epmvGui import epmvGui
@@ -49,7 +51,7 @@ class blenderAdaptor(epmvAdaptor):
 #        self._Tube = self.helper.Tube
         self._createsNmesh = self.helper.createsNmesh
         self._metaballs = self.helper.metaballs
-#        self._PointCloudObject = self.helper.PointCloudObject
+        self._PointCloudObject = self.helper.PointCloudObject
 #        #modify/update geom helper function
 ##        self._updateSphereMesh = self.helper.updateSphereMesh
         self._updateSphereObj = self.helper.updateSphereObj
@@ -69,7 +71,27 @@ class blenderAdaptor(epmvAdaptor):
         self.matlist = self.helper.getAllMaterials()
         if gui :
             self.createGUI()
-            
+
+    def synchronize(self):
+        prefdir = Blender.Get('uscriptsdir')
+        if prefdir is None:
+            prefdir = Blender.Get('scriptsdir')        
+        self.helper.addTextFile(name="epmv_synchro",
+                                file=prefdir+os.sep+"epmv_blender_update.py")
+        scene = self.helper.getCurrentScene()
+        #should load the script for scene update...
+        if self.synchro_realtime :
+            if not hasattr(self,"epmv_synchro") or not self.epmv_synchro:
+                scene.addScriptLink("epmv_synchro", "FrameChanged")
+                self.epmv_synchro = True
+        else :
+            scene.clearScriptLinks()
+            self.epmv_synchro = False
+        #Parameters:
+        # * text (string) - the name of an existing Blender Text.
+        # * event (string) - "FrameChanged", "OnLoad", "OnSave", "Redraw" or "Render".
+        #sc.clearScriptLinks(links=None)
+        
     def _resetProgressBar(self,max):
         pass
 
@@ -187,8 +209,9 @@ class blenderAdaptor(epmvAdaptor):
         self.helper.changeColor(geom.mesh,colors,perVertex=perVertex,
                          perObjectmat=perObjectmat,pb=pb)
 
-    def _armature(self,name, atomset):
-        self.helper.armature(name, atomset.coords)
+    def _armature(self,name, atomset,scn=None,root=None):
+        object,bones = self.helper.armature(name, atomset.coords,scn=scn,root=root)
+        return object,bones
         
     def atoms_armature(self,name,atoms,scn):
         return self.armature(name,atoms.coords,scn=scn)
@@ -250,23 +273,6 @@ class blenderAdaptor(epmvAdaptor):
             masterCPK.SetMg(matr)
         return vt#updateMolAtomCoordCPK(mol,index=index)
         
-    def updateMolAtomCoordCPK(self,mol,index=-1):
-        #just need that cpk or the balls have been computed once..
-        #balls and cpk should be linked to have always same position
-        # let balls be dependant on cpk => contraints? or update
-        # the idea : spline/dynamic move link to cpl whihc control balls
-        # this should be the actual coordinate of the ligand
-        # what about the rc...
-        vt = []
-        sph = mol.geomContainer.geoms['cpk'].obj
-        for name in sph:
-            o = self.helper.getObject(name)
-            pos=o.GetMg().off
-    #        pos=o.GetAbsPos()
-            vt.append(vc4d(pos))
-        print vt[0]
-        return vt
-
     def createGUI(self):
         self.gui = epmvGui(epmv=self,rep='epmv')
 

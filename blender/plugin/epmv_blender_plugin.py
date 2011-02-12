@@ -71,7 +71,10 @@ if len(MGL_ROOT) == 0 :
         if len(MGL_ROOT) == 0 :    
             MGL_ROOT=Blender.Draw.PupStrInput("what is the path to MGLToolsPckgs?:", "untitled", 100)
             if not os.path.exists(MGL_ROOT):
-                MGL_ROOT=Blender.Draw.PupStrInput("MGLToolsPckgs path:", "untitled", 100)
+                if not os.path.exists(MGL_ROOT+os.sep+".."+os.sep+"MGLToolsPckgs"):
+                    MGL_ROOT=Blender.Draw.PupStrInput("MGLToolsPckgs path:", "untitled", 100)
+                else :
+                    MGL_ROOT=MGL_ROOT+os.sep+".."+os.sep
         if os.path.exists(MGL_ROOT):
             f=open(mgldirfile,'w')
             f.write(MGL_ROOT)
@@ -101,7 +104,7 @@ if len(MGL_ROOT):
             f.write("MGL patched!")
             f.close()
 #do I need to copy the file
-    plugfile = prefdir+os.sep+"blenderPmvScriptGUI.py"
+    plugfile = prefdir+os.sep+"epmv_blender_plugin.py"
     print plugfile
     if not os.path.isfile(plugfile) :
         indir = MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+\
@@ -109,9 +112,9 @@ if len(MGL_ROOT):
         outdir = prefdir+os.sep
         print outdir
         files=[]
-        files.append("blenderPmvScriptGUI.py")
+        files.append("epmv_blender_plugin.py")
         files.append("blenderPmvClientGUI.py") 
-        files.append("epmv_blender_update.py")   
+        files.append("epmv_blender_update.py")
         for f in files : 
             shutil.copy (indir+f, outdir+f)
         print "copy"

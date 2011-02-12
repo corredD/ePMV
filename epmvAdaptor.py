@@ -78,9 +78,10 @@ class loadMoleculeInHost(MVCommand):
         chname=['Z','Y','X','W','V','U','T']
         molname=mol.name#mol.replace("'","")
         #setup some variable
-        if molname not in self.mv.molDispl.keys() :
-            #cpk,bs,ss,surf,cms
-            self.mv.molDispl[molname]={}#[False,False,False,False,False,None,None]
+        self.mv.molDispl[molname]={}
+        for k in ["cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
+            self.mv.molDispl[molname][k]=False
+        self.mv.molDispl[molname]["col"] = None        
         if molname not in self.mv.MolSelection.keys() :
             self.mv.MolSelection[molname]={}
         if molname not in self.mv.selections.keys() :       
@@ -238,19 +239,20 @@ class epmvAdaptor:
         }
 
     def setupMV(self):
-        self.mv.addCommand(loadMoleculeInHost(self),'_loadMol',None)
         self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
         self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
         self.mv.addCommand(PlayTrajectoryCommand(),'playTrajectory',None)
         self.mv.addCommand(addGridCommand(),'addGrid',None)
         self.mv.addCommand(readAnyGrid(),'readAny',None)
         self.mv.addCommand(IsocontourCommand(),'isoC',None)
-        #define the listener    
-        self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
-        self.mv.registerListener(AddGeomsEvent, self.updateGeom)
-        self.mv.registerListener(EditGeomsEvent, self.updateGeom)
-        self.mv.registerListener(DeleteAtomsEvent, self.updateModel)
-        
+        #define the listener
+        if self.host is not None :
+            self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
+            self.mv.registerListener(AddGeomsEvent, self.updateGeom)
+            self.mv.registerListener(EditGeomsEvent, self.updateGeom)
+            self.mv.registerListener(DeleteAtomsEvent, self.updateModel)
+            self.mv.addCommand(loadMoleculeInHost(self),'_loadMol',None)            
+            self.mv.embedInto(self.host,debug=0)
         #compatibility with PMV
         self.mv.Grid3DReadAny = self.mv.readAny
         #mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
@@ -263,7 +265,7 @@ class epmvAdaptor:
             self.mv.recentFiles = RecentFiles(self.mv, None, filePath=rcFile,index=0)
         else :
             print "no rcFolder??"
-        self.mv.embedInto(self.host,debug=0)
+        
         #this  create mv.hostapp which handle server/client and log event system
         #NOTE : need to test it in the latest version
 #        if not self.useLog : 
@@ -511,7 +513,7 @@ class epmvAdaptor:
         selname=""
         mname=val
         #print self.mv.iMol.keys()       
-        if mname in self.mv.molDispl.keys(): 
+        if mname in self.mv.selections.keys(): 
             selname=mname
             print str(val),mname,selname
         else : #it is the selecetionname
@@ -520,11 +522,11 @@ class epmvAdaptor:
                     if mname == sname :
                         selname = sname
                         mname = name
-                        return selname,None
         print mname
         mol=self.mv.getMolFromName(mname)
 #        print mol.name
-        if forupdate: return selname,mol#? 
+        if forupdate: 
+            return selname,mol#? 
         return mname,mol
 
     def getSelectionLevel(self,mol,selString):
@@ -685,7 +687,10 @@ class epmvAdaptor:
         @param molname: the molecule name        
         """            
         if molname not in self.mv.molDispl.keys() :
-            self.mv.molDispl[molname]={}#[False,False,False,False,False,None,None]
+            self.mv.molDispl[molname]={}
+            for k in ["cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
+                self.mv.molDispl[molname][k]=False
+            self.mv.molDispl[molname]["col"] = None
         if molname not in self.mv.MolSelection.keys() :
             self.mv.MolSelection[molname]={}
         if molname not in self.mv.selections.keys() :       
@@ -980,10 +985,10 @@ class epmvAdaptor:
         sc = self._getCurrentScene()
         mol = mol[0]
         sel=atms[0]
-        print mol, sel, len(mol.allAtoms) != len(sel)
+#        print mol, sel, len(mol.allAtoms) != len(sel)
         selection = len(mol.allAtoms) != len(sel)
         chn = sel[0].getParentOfType(Chain)
-        print chn
+#        print chn
         root = mol.geomContainer.masterGeom.obj
         chobj = mol.geomContainer.masterGeom.chains_obj
         display = not options[1]
@@ -993,10 +998,10 @@ class epmvAdaptor:
         if not hasattr(chn,"secondarystructureset"):
             return
         for ch in mol.chains:
-            print ch.name
+#            print ch.name
             if selection and ch is chn:
                 ch = chn
-                print chn.name
+#                print chn.name
             parent = self._getObject(chobj[ch.name+"_ss"])
             for elem in ch.secondarystructureset:
                 #get the geom or the extruder ?
@@ -1007,11 +1012,14 @@ class epmvAdaptor:
                     self.createMesh(mol.name+"_"+ch.name+"_"+name,ex,parent=parent)
                     elem.exElt.name = name
                     #change the material color to ss
-                    color = SecondaryStructureType[name[:-1]]
+                    for key in SecondaryStructureType.keys():
+                        if key in name:
+                            color = SecondaryStructureType[key]
+                            break
                     matname = "mat_"+self.helper.getName(ex.obj)
                     self.helper.colorMaterial(matname, color)
                 elif hasattr(ex,"obj") : 
-                    self._updateMesh(ex)
+                    self._updateMesh(ex) 
                     self._toggleDisplay(ex.obj,display)
             if selection :
                 break
@@ -2278,12 +2286,28 @@ class epmvAdaptor:
             vt=self.updateMolAtomCoordSpline(mol)
             mol.allAtoms.get("CA").updateCoords(vt,ind=index)
 
+    def updateMolAtomCoordCPK(self,mol):
+        """
+        Return each CPK spheres absolute position for the specified mol.
+    
+        @type  mol: Molkit protein
+        @param mol: the molecule from which the cpk sphere position will be get.
+        @rtype:   array
+        @return:  the xyz positions coordinates  of the CPK spheres
+        """
+        sph = mol.geomContainer.geoms['cpk'].obj
+        vt=[self.helper.ToVec(self.helper.getTranslation(x)) for x in sph]
+        print vt[0]
+        return vt
+
     def updateCoordFromObj(self,sel,debug=True):
         mv = self.mv
         s=None
         if len(sel):
             #take first object selected?
             s=sel[0]
+            print "in epmv ",s
+            print "of type ", self.helper.getType(s)
         if s is not None :
             #print s.GetName()
             if self.helper.getType(s) == self.helper.SPLINE :
@@ -2298,7 +2322,7 @@ class epmvAdaptor:
             if  self.helper.getType(s) == self.helper.EMPTY or \
                     self.helper.getType(s) == self.helper.INSTANCE or \
                     self.helper.getType(s) == self.helper.SPLINE:
-                #print "ok null" 
+                print "ok null" 
                 #molname or molname:chainname or molname:chain_ss ...
                 hi = self.parseName(self.helper.getName(s))
                 #print "parsed ",hi
@@ -2339,7 +2363,7 @@ class epmvAdaptor:
                         rec = mv.energy.current_scorer.mol1
                         lig = mv.energy.current_scorer.mol2
                         if rec.name == molname or lig.name == molname:
-                            self.updateMolAtomCoord(rec,rec.cconformationIndex,types='lines')
+                            self.updateMolAtomCoord(rec,rec.cconformationIndex,types='cpk')
                             #mv.displayCPK(rec,redo=1)
                             self.updateMolAtomCoord(lig,lig.cconformationIndex,types='cpk')
                         if mv.energy.realTime:
@@ -2360,8 +2384,11 @@ class epmvAdaptor:
                                                                rec.pmvaction.temp)                  
                 else : 
                     for mol in mv.Mols:
+                        print "ok ",mol
                         if hasattr(mol,'pmvaction') : 
+                            print "pmvaction"
                             if mol.pmvaction.realtime :
+                                print "lets modeller"
                                 mol.pmvaction.redraw=False
                                 #synchronize current structure with modeller
                                 self.updateMolAtomCoord(mol,mol.pmvaction.idConf,
@@ -2384,19 +2411,14 @@ class epmvAdaptor:
         status = energy.compute_energies()
         print status
         if status is None: return
-        #print energy.current_scorer
         print energy.current_scorer.score
-#        vf = energy.viewer
-        if energy.label:
-            text = self.getObject("score")
-            if text != None :
-                print "score :"+str(energy.current_scorer.score)[0:5]
-                #update 3D text
-#                text[2111] = "score :"+str(energy.current_scorer.score)[0:5]
-#                for i,term in enumerate(['el','hb','vw','so']):
-#                    labelT = getObject(term)
-#                    labelT[2111] = term+" : "+str(energy.current_scorer.scores[i])[0:5]
-#        #should make multi label for multi terms    
+        if hasattr(energy,'labels'):
+            self.helper.updateText( energy.labels[0],
+                    string="score :"+str(energy.current_scorer.score)[0:5])
+            for i,term in enumerate(['el','hb','vw','so']):
+                labelT = energy.labels[i+1]
+                self.helper.updateText( labelT,
+                string=term+" : "+str(energy.current_scorer.scores[i])[0:5])
         # change color of ligand with using scorer energy
         if energy.color[0] or energy.color[1] :
             # change selection level to Atom

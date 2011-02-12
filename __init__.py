@@ -25,6 +25,8 @@ def epmv_start(soft,gui=False,debug=0):
         from ePMV.cinema4d.c4dAdaptor import c4dAdaptor as adaptor
     elif soft=='maya':
         from ePMV.autodeskmaya.mayaAdaptor import mayaAdaptor as adaptor
+    else :
+        from ePMV.epmvAdaptor import epmvAdaptor as adaptor
 #    elif soft == 'chimera':
 #        from ePMV.Chimera.chimeraAdaptor import chimeraAdaptor as adaptor
 #    elif soft == 'houdini':
