@@ -53,29 +53,21 @@ import os
 #cmds.confirmDialog( title='About ePMV', message=about, button=['OK'], 
 #                           defaultButton='OK')
                            
-MGL_ROOT="/Library/MGLTools/1.5.6.up"
+#MGL_ROOT="/Library/MGLTools/1.5.6.up"
 
 prefpath=cmds.internalVar(userPrefDir=True)
 os.chdir(prefpath)
 os.chdir(".."+os.sep)
 softdir = os.path.abspath(os.curdir)
-mgldirfile=softdir+os.sep+"mgltoolsdir"
+mgldirfile=prefpath+os.sep+"mgltoolsdir"
 personalize = False
-if not MGL_ROOT :
-    if os.path.isfile(mgldirfile) :
-        f=open(mgldirfile,'r')
-        MGL_ROOT=f.readline()
-        f.close()
-    else :
-        if len(MGL_ROOT) == 0 :
-            MGL_ROOT = cmds.fileDialog2(fileMode=3, dialogStyle=1,
-                                        cap="what is the path to MGLToolsPckgs?")
-            MGL_ROOT = str(MGL_ROOT[0])
-            personalize = True
-        f=open(mgldirfile,'w')
-        f.write(MGL_ROOT)
-        f.close()
-
+if os.path.isfile(mgldirfile) :
+    f=open(mgldirfile,'r')
+    MGL_ROOT=f.readline()
+    f.close()
+else :
+    cmds.confirmDialog( title='ePMV', message="ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile, button=['OK'], 
+                           defaultButton='OK')
 print MGL_ROOT
 ICONSDIR=MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+"images"+os.sep+"icons"+os.sep
 print ICONSDIR
@@ -86,73 +78,8 @@ print ICONSDIR
 #if uidir not in plugpath:
 #    os.environ["MAYA_PLUG_IN_PATH"] = os.environ["MAYA_PLUG_IN_PATH"]+":"+uidir
 
-#how to personalize it...
-
-def _reporthook(numblocks, blocksize, filesize, url=None, pb = None):
-    #print "reporthook(%s, %s, %s)" % (numblocks, blocksize, filesize)
-    base = os.path.basename(url)
-    #XXX Should handle possible filesize=-1.
-    try:
-        percent = min((numblocks*blocksize*100)/filesize, 100)
-    except:
-        percent = 100
-    if numblocks != 0:
-        sys.stdout.write("\b"*70)
-    sys.stdout.write("%-66s%3d%%" % (base, percent))
-    if pb is not None:
-        cmds.progressWindow( edit=True, 
-                            progress=percent, 
-                            status=('Downloading: ' + `amount` + '%' ) )
-
-#is MGLTools Pacthed ie windows
-if sys.platform == 'win32':
-    #need to patch MGLTools first
-    #first patch MGLTools
-    #check if we need to patch
-    mgltoolsDir = MGL_ROOT+os.sep+"MGLToolsPckgs"
-    patch=os.path.isfile(mgltoolsDir+os.sep+"patched")
-    if not patch :
-        amount=0
-        #need to test deeper. as it look like its slowing down the download...
-        #cmds.progressWindow(    title='Patching MGLToolsPckgs with python2.6 system dependant modules',
-        #                                progress=amount,
-        #                                status='Sleeping: 0%',
-        #                                isInterruptable=True )
-
-        import urllib
-        import tarfile 
-#        c4d.gui.MessageDialog("Patching MGLToolsPckgs with python2.6 system dependant modules")
-        print mgltoolsDir+os.sep
-        patchpath = mgltoolsDir+os.sep
-        URI="http://mgldev.scripps.edu/projects/ePMV/patchs/depdtPckgs.tar"
-        tmpFileName = mgltoolsDir+os.sep+"depdtPckgs.tar"
-        if not os.path.isfile(tmpFileName):
-#            urllib.urlretrieve(URI, tmpFileName)
-            urllib.urlretrieve(URI, tmpFileName,
-                           lambda nb, bs, fs, url=URI: _reporthook(nb,bs,fs,url,pb=False))
-            #geturl(URI, tmpFileName)
-        TF=tarfile.TarFile(tmpFileName)
-        TF.extractall(patchpath)
-        #create the pacthed file
-        f=open(mgltoolsDir+os.sep+"patched","w")
-        f.write("MGL patched!")
-        f.close()
-#        c4d.gui.MessageDialog("MGLTools pacthed, click OK to continue")
-        #cmds.progressWindow(endProgress=1)
-
 #add to syspath
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
-
-#ok now need to modify the shelf/preferences
-#creating a shelf on the fly, but remember it...like first time runing
-if personalize:
-    from ePMV.install_plugin import Installer
-    epmvinstall = Installer(gui=False)
-    plugdir = MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"Pmv"+os.sep+"hostappInterface"
-    epmvinstall.personalizeMaya(plugdir,prefpath)
-    #in that case we should restart...not sure will work
-    cmds.confirmDialog( title='ePMV', message="You need to restart maya to see ePMV button", button=['OK'], 
-                           defaultButton='OK')
 if sys.platform == "win32":
     sys.path.append(MGL_ROOT+os.sep+'MGLToolsPckgs'+os.sep+'PIL')
 else :
@@ -160,7 +87,7 @@ else :
     sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
     sys.path.append('/Library/Python/2.5/site-packages/')
 
-kPluginCmdName = "ePMV2"
+kPluginCmdName = "ePMV"
 print kPluginCmdName
 
 import pyubic
@@ -213,5 +140,5 @@ def uninitializePlugin(mobject):
 #ePMV.setUIClass('maya')
 #from ePMV import epmvGui
 #epmvui = epmvGui()
-#epmvui.setup(rep=dname,mglroot=MGL_ROOT,host='c4d')
+#epmvui.setup(rep=dname,mglroot=MGL_ROOT,host='maya')
 #epmvui.CreateLayout()

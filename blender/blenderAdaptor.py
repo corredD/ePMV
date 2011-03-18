@@ -10,7 +10,6 @@ import os
 
 import ePMV
 from ePMV.epmvAdaptor import epmvAdaptor
-from ePMV.epmvGui import epmvGui
 #from ePMV.blender import blenderHelper
 from pyubic.blender import blenderHelper
 
@@ -27,9 +26,10 @@ from Pmv.pmvPalettes import SecondaryStructureType
 
 class blenderAdaptor(epmvAdaptor):
     def __init__(self,mv=None,debug=0,gui=False):
-        epmvAdaptor.__init__(self,mv,host='blender',debug=debug)
         self.soft = 'blender'
         self.helper = blenderHelper.blenderHelper()
+        epmvAdaptor.__init__(self,mv,host='blender',debug=debug)
+
 #        #scene and object helper function
         self._getCurrentScene = self.helper.getCurrentScene
 ##        self._addObjToGeom = self.helper.addObjToGeom
@@ -102,6 +102,7 @@ class blenderAdaptor(epmvAdaptor):
         if spline is None :
             obSpline,spline = self.helper.spline(name,coords,extrude_obj=shape,scene=sc)
         if parent is not None :
+            parent=self.helper.getObject(parent)
             parent.makeParent([obSpline])
         return obSpline
 
@@ -178,7 +179,7 @@ class blenderAdaptor(epmvAdaptor):
                 mesh=iMe[atN[0]]
                 if type(mesh) == str :
                     mesh=self.helper.getMesh(mesh)
-                atfname = at.full_name()
+                atfname = at.full_name().replace("'","b")+"n"+str(at.number)
                 #there is a string lenght limitation in blender object name...
                 #print "fullname ",atfname
                 OBJ=scn.objects.new(mesh,n+"_"+atfname)
@@ -206,7 +207,14 @@ class blenderAdaptor(epmvAdaptor):
         return  objs
 
     def _changeColor(self,geom,colors,perVertex=True,perObjectmat=None,pb=False):
-        self.helper.changeColor(geom.mesh,colors,perVertex=perVertex,
+        if hasattr(geom,'mesh'):
+            objToColor = geom.mesh
+        else :
+            if type(geom) is str :
+                objToColor = self.helper.getObject(geom)
+            else :
+                objToColor = geom                
+        self.helper.changeColor(objToColor,colors,perVertex=perVertex,
                          perObjectmat=perObjectmat,pb=pb)
 
     def _armature(self,name, atomset,scn=None,root=None):
@@ -272,7 +280,28 @@ class blenderAdaptor(epmvAdaptor):
             masterCPK=sph[0].GetUp()
             masterCPK.SetMg(matr)
         return vt#updateMolAtomCoordCPK(mol,index=index)
-        
+
+    def _editLines(self,molecules,atomSets):
+        scn = self.helper.getCurrentScene()
+        for mol, atms, in map(None, molecules, atomSets):
+            #check if line exist
+            for ch in mol.chains:
+                parent = self.helper.getObject(ch.full_name())
+                lines = self.helper.getObject(ch.full_name()+'_line')
+                if lines == None :
+                    bonds, atnobnd = ch.residues.atoms.bonds
+                    indices = map(lambda x: (x.atom1._bndIndex_,
+                                             x.atom2._bndIndex_), bonds)
+                    
+                    lines = self.helper.createsNmesh(ch.full_name()+'_line',ch.residues.atoms.coords,
+                                         None,indices)
+                    self.helper.addObjectToScene(scn,lines[0]	,parent=parent)
+                    mol.geomContainer.geoms[ch.full_name()+'_line'] = lines
+                    #addObjToGeom(lines,mol.geomContainer.geoms['lines'])
+                else : #need to update
+                    self._updateLines(lines, chains=ch)
+
     def createGUI(self):
+        from ePMV.epmvGui import epmvGui
         self.gui = epmvGui(epmv=self,rep='epmv')
 

@@ -70,9 +70,9 @@ class ePMVsynchro:
 class mayaAdaptor(epmvAdaptor):
     
     def __init__(self,gui=False,mv=None,debug=0):
-        epmvAdaptor.__init__(self,mv,host='maya',debug=debug)
         self.soft = 'maya'
         self.helper = helperMaya.mayaHelper()
+        epmvAdaptor.__init__(self,mv,host='maya',debug=debug)
         #scene and object helper function
 #        self._getCurrentScene = mayaHelper.getCurrentScene
         self._getCurrentScene = self.helper.getCurrentScene
@@ -114,8 +114,12 @@ class mayaAdaptor(epmvAdaptor):
 #            maya.pb = None    
         #define the general function
         self.use_progressBar = False
+        self._resetProgressBar = self.helper.resetProgressBar
+        self._progressBar = self.helper.progressBar
         self.rep = "epmv"
-         
+        #specific options
+        self.keywords["spherestype"]={"name":"use nurbs sphere instead of polygonal one","value":True,"type":"checkbox"}
+
     def synchronize(self):
         if self.synchro_realtime:
             if not hasattr(self,"epmv_synchro") or self.epmv_synchro is None:
@@ -135,13 +139,18 @@ class mayaAdaptor(epmvAdaptor):
             shape = "CircleShape"
         if spline is None :
             obSpline,spline,extruded = self.helper.spline(name,coords,
-                                                    extrude_obj=shape,scene=sc)
+                                                    extrude_obj=shape,scene=sc,
+                                                    parent =parent)
         #if parent is not None :
         #    parent.makeParent([obSpline])
         return obSpline#,extruded
 
     def _createBaseSphere(self,name="",quality=0,radius=None,cpkRad=0.0,
                          scale=1.0,scene=None,parent=None):
+        if self.spherestype :
+            typeSp = "nurb"
+        else :
+            typeSp = "poly"
         iMe={}
         baseparent=self.helper.getObject(name,doit=True)
         if baseparent is None:    
@@ -158,7 +167,7 @@ class mayaAdaptor(epmvAdaptor):
 #                                             atparent,parent=baseparent)
             iMe[atn]=self.helper.getObject(name+'_'+atn,doit=True)
             if not iMe[atn]:
-                pobj,iMe[atn]=self.helper.Sphere(name+'_'+atn,mat = atn)
+                pobj,iMe[atn]=self.helper.Sphere(name+'_'+atn,mat = atn,type=typeSp)
 #                iMe[atn],node=cmds.sphere(name=name+"Atom_"+atn,r=rad)#float(scaleFactor) ) #nurbsphere
                 self.helper.addObjectToScene(self.helper.getCurrentScene(),
                                              iMe[atn],parent=baseparent)
@@ -185,77 +194,79 @@ class mayaAdaptor(epmvAdaptor):
         else :
             coords=x.coords
         #import maya
-            
+        pb = self.use_progressBar    
         hiera = 'default'        
         mol = x[0].getParentOfType(Protein)        
         #parent=getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_balls"])  
         parent=self.findatmParentHierarchie(x[0],n,hiera)
+        if pb :
+            self.helper.resetProgressBar()
         for c in mol.chains:
+            if pb :
+                self.helper.progressBar(label="chain :"+c.name)
             spher=[]
             oneparent = True 
             atoms = c.residues.atoms
 #            if pb != None  : 
 #                maya.cmds.progressBar(maya.pb, edit=True, maxValue=len(atoms.coords),progress=0)
-            parent=self.findatmParentHierarchie(atoms[0],n,hiera)    
-            for j in xrange(len(atoms.coords)):
-                at=atoms[j]
+            parent=self.findatmParentHierarchie(atoms[0],n,hiera) 
+            hierarchy=atoms[0].full_name().split(":")   
+            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_"+nn])
+            def oneinstance(at,pb=False):
                 atN=at.name
-                #print atN
                 if atN[0] not in self.AtmRadi.keys(): atN="A"
-                fullname = at.full_name().replace(":","_").replace(" ","_").replace("'","")
-                #print fullname
-                atC=at.coords#at._coords[0]
-                #is theyr another way to create the instance, maybe using openMaya..
-                self.helper.newMInstance(n+"_"+fullname,iMe[atN[0]],location=atC)
-                spher.append(n+"_"+fullname)
-#                spher.append(cmds.instance(iMe[atN[0]],name=n+"_"+fullname))
-#                cmds.move(float(atC[0]),float(atC[1]),float(atC[2]), n+"_"+fullname,
-#                        absolute=True )            
-#                factor=float(R)+float(AtmRadi[atN[0]])*float(scale)
-                #have to update the nurbTosurface...not the node...        
-#                cmds.scale(factor, factor, factor, n+"_"+fullname,absolute=True )
-                hierarchy=at.full_name().split(":")
-                #print hierarchy
-                #print mol.geomContainer.masterGeom.chains_obj
-                #print hierarchy[1]+"_"+nn
-                parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_"+nn])
-    #            p = findatmParentHierarchie(at,n,hiera)
-    #            if parent != p : 
-    #                cp = p
-    #                oneparent = False
-    #                parent = p
-    #            else :
-    #                cp = parent    
-                #the parenting is realy slow...
-                self.helper.addObjectToScene(self.helper.getCurrentScene(),n+"_"+fullname,parent=parent)
-                self.helper.toggleDisplay(n+"_"+fullname,False)
-#                if maya.pb != None : 
-#                    maya.cmds.progressBar(maya.pb, edit=True, step=1)#progress=j/len(atoms.coords)*100)        
+                fullname = at.full_name().replace(":","_").replace(" ","_").replace("'","b")+"n"+str(at.number)
+                atC=at.coords
+                sph = self.helper.newMInstance(n+"_"+fullname,iMe[atN[0]],location=atC,parent = parent)
+                #self.helper.addObjectToScene(self.helper.getCurrentScene(),sph,parent=parent)
+                self.helper.toggleDisplay(sph,False)
+                if pb :
+                    self.helper.progressBar(progress = 1)
+                return sph
+            spher = [oneinstance(at,pb=pb) for at in atoms]   
             sphers.extend(spher)
+        if pb :
+            self.helper.resetProgressBar()
         return spher
 
     def _changeColor(self,geom,colors,perVertex=True,perObjectmat=None,pb=False):
-        self.helper.changeColor(geom.mesh,colors,perVertex=perVertex,
+        if hasattr(geom,'mesh'):
+            objToColor = geom.mesh
+        else :
+            if type(geom) is str :
+                objToColor = self.helper.getObject(geom)
+            else :
+                objToColor = geom        
+        self.helper.changeColor(objToColor,colors,perVertex=perVertex,
                          perObjectmat=perObjectmat,pb=pb)
 
-    def _armature(self,name, atomset,scn=None,root=None):
-        object,bones=self.helper.armature(name, atomset.coords,scn=scn,root=root)
+    def _armature(self,name, atomset,coords=None,scn=None,root=None):
+        if coords is not None :
+            c = coords
+        else :
+            c = atomset.coords
+        object,bones=self.helper.armature(name, c,scn=scn,root=root)
         return object,bones
-
         
     def splitName(self,name):
     #general function-> in the adaptor ?
+        #T_3bna_A_C11_P_OP2
+        #"T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
         if name[0] == "T" : #sticks name.. which is "T_"+chname+"_"+Resname+"_"+atomname+"_"+atm2.name\n'
             tmp=name.split("_")
             return ["T",tmp[1],tmp[2],tmp[3][0:1],tmp[3][1:],tmp[4]]
         else :
+            #case where 2 __ S_3bna_A__DC3_O2 A
             tmp=name.split("_")
             indice=tmp[0]#.split("_")[0]
             molname=tmp[1]#.split("_")[1]
             chainname=tmp[2]
-            residuename=tmp[3][0:3]
-            residuenumber=tmp[3][3:]
-            atomname=tmp[4]
+            ires = 3
+            if len(tmp) > 5 :
+                ires = 4
+            residuename=tmp[ires][0:3]
+            residuenumber=tmp[ires][3:]
+            atomname=tmp[ires+1]
             return [indice,molname,chainname,residuename,residuenumber,atomname]
 
     def updateMolAtomCoordBones(self,mol,index=-1):
@@ -263,9 +274,7 @@ class mayaAdaptor(epmvAdaptor):
         vt = []
         bones = mol.geomContainer.geoms["armature"][1]
         vt = [self.helper.ToVec(self.helper.getJointPosition(j)) for j in bones]
-#        for join in bones:
-#            pos=join.GetMg().off
-#            vt.append(self.helper.vc4d(pos))
+        print len(vt),vt[0]
         return vt
     
     def updateMolAtomCoordSpline(self,mol,index=-1):

@@ -6,14 +6,17 @@ The ePMV Adaptor Module
 
 This module provides the function to start ePMV, the function that handle the molecule loading, and 
 the Adaptor base class.
-
 """
 
+
 import sys,os
+import DejaVu
+DejaVu.enableVertexArray = False
 from Pmv.mvCommand import MVCommand
 from Pmv.moleculeViewer import MoleculeViewer
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
 from Pmv.moleculeViewer import DeleteAtomsEvent, EditAtomsEvent
+from Pmv.deleteCommands import BeforeDeleteMoleculesEvent
 from Pmv.displayCommands import BindGeomToMolecularFragment
 from Pmv.trajectoryCommands import PlayTrajectoryCommand
 
@@ -32,14 +35,18 @@ from mglutil.util.recentFiles import RecentFiles
 import numpy
 import numpy.oldnumeric as Numeric #backward compatibility
 import math
+import ePMV
 from ePMV import comput_util as util
-from ePMV.install_plugin import Installer
+from ePMV.installer import Installer
 from ePMV.lightGridCommands import addGridCommand
 from ePMV.lightGridCommands import readAnyGrid
 from ePMV.lightGridCommands import IsocontourCommand
 #TODO:
 #add computation (trajectory reading,energy,imd,pyrosetta?,amber)
 #check if work with server/client mode...
+
+#color utility from pyubi
+from pyubic import colors as col
 
 class loadMoleculeInHost(MVCommand):
     """
@@ -79,7 +86,7 @@ class loadMoleculeInHost(MVCommand):
         molname=mol.name#mol.replace("'","")
         #setup some variable
         self.mv.molDispl[molname]={}
-        for k in ["cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
+        for k in ["bead","cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
             self.mv.molDispl[molname][k]=False
         self.mv.molDispl[molname]["col"] = None        
         if molname not in self.mv.MolSelection.keys() :
@@ -184,12 +191,29 @@ class loadMoleculeInHost(MVCommand):
             chobjss=self.epmv._newEmpty(ch.full_name()+"_ss",location=ch_center)            
             mol.geomContainer.masterGeom.chains_obj[ch.name+"_ss"]=self.epmv._getObjectName(chobjss)
             self.epmv._addObjectToScene(sc,chobjss,parent=chobj,centerRoot=True)
-#        sys.stderr.write("some computation")
+ 
+#        if mol.parser.hasSsDataInFile():
+#            mod = "From File"
+#        else:
+#            mod = "From Pross"
+#        self.mv.computeSecondaryStructure(
+#            mol, molModes={'%s'%mol.name:mod}, topCommand=0)
+        #self.mv.extrudeSecondaryStructure(sel, topCommand=0, log=0, display=0)
+        self.epmv.testNumberOfAtoms(mol)
+        self.mv.assignAtomsRadii(str(molname), united=0, log=0, overwrite=1)
+        self.epmv._addMolecule(mol.name)
         radius = util.computeRadius(P,center)
 #        sys.stderr.write(str(radius))
         focal = 2. * math.atan((radius * 1.03)/100.) * (180.0 / 3.14159265358979323846)
 #        sys.stderr.write(str(focal))
         center =center[0],center[1],(center[2]+focal*2.0)
+#        if mol.parser.hasSsDataInFile():
+#            mod = "From File"
+#        else:
+#            mod = "From Pross"
+#        self.mv.computeSecondaryStructure(
+#            mol, molModes={'%s'%mol.name:mod}, topCommand=0)
+
 #        print center
         if self.epmv.doCamera :          
             self.epmv._addCameraToScene("cam_"+mol.name,"ortho",focal,center,sc)
@@ -228,7 +252,8 @@ class epmvAdaptor:
         "doCamera":{"name":"PMV camera","value":True,"type":"checkbox"},
         "doLight":{"name":"PMV light","value":True,"type":"checkbox"},
         "useModeller":{"name":"Use Modeller","value":False,"type":"checkbox"},
-        "synchro_realtime":{"name":"Synchro realtime","value":True,"type":"checkbox"},
+        "usePymol":{"name":"Use PyMol","value":False,"type":"checkbox"},
+        "synchro_realtime":{"name":"Synchro realtime","value":False,"type":"checkbox"},
         "synchro_timeline":{"name":"Synchronize data player to timeline",
                             "value":False,"type":"checkbox"},
         "synchro_ratio":[{"name":"steps every","value":1,"type":"inputInt",
@@ -237,7 +262,9 @@ class epmvAdaptor:
                          "mini":0,"maxi":2000}],
         "forceFetch":{"name":"Force downloading on Fetch","value":False,"type":"checkbox"}
         }
-
+    
+    MAX_LENGTH_NAME = 5
+    
     def setupMV(self):
         self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
         self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
@@ -251,6 +278,7 @@ class epmvAdaptor:
             self.mv.registerListener(AddGeomsEvent, self.updateGeom)
             self.mv.registerListener(EditGeomsEvent, self.updateGeom)
             self.mv.registerListener(DeleteAtomsEvent, self.updateModel)
+            self.mv.registerListener(BeforeDeleteMoleculesEvent,self.updateModel)
             self.mv.addCommand(loadMoleculeInHost(self),'_loadMol',None)            
             self.mv.embedInto(self.host,debug=0)
         #compatibility with PMV
@@ -294,6 +322,7 @@ class epmvAdaptor:
 #        self.Set(reset=True,useLog=useLog,**kw)
         if self.mv == None :
             self.mv = self.start(debug=debug)
+        self.mv.helper = self.helper
         self.setupMV()
         self.addADTCommands()
         if not hasattr(self.mv,'molDispl') : self.mv.molDispl={}
@@ -315,11 +344,9 @@ class epmvAdaptor:
         self.AtmRadi = {"A":1.54,"M":1.54,"N":"1.54","C":"1.7","CA":"1.7",
                         "O":"1.52","S":"1.85","H":"1.2","P" : "1.04"}
         self.lookupDGFunc = util.lookupDGFunc
-
+        self.max_atoms = 10000
         
     def setupInst(self):
-        if self.inst is None :
-            self.inst=Installer(gui=False)
 #        print "mglroot ",self.mglroot
         if not self.mglroot :
             import Pmv
@@ -329,9 +356,11 @@ class epmvAdaptor:
             os.chdir(".."+os.sep) #mgltools
             self.mglroot = os.path.abspath(os.curdir)
 #            print "mglrootx ",self.mglroot
-        self.inst.mgltoolsDir=self.mglroot
-        self.inst.currDir=self.mglroot+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep
-
+        if self.inst is None :
+            self.inst=Installer(mgl=self.mglroot)
+        else :
+            self.inst.setMGL(mgl=self.mglroot)
+            
     def initOption(self):
         """
         Initialise the defaults options for ePMV, e.g. keywords.
@@ -350,11 +379,13 @@ class epmvAdaptor:
         self.useTree = 'default'#None#'perRes' #or perAtom	
         self.useIK = False			
         self.useModeller = False #do we use modeller
+        self.usePymol = False
         self._modeller = False #is modeller present
         self.synchro_ratio = [self.keywords["synchro_ratio"][0]["value"],
                             self.keywords["synchro_ratio"][0]["value"]] #every 1 step for every 1 frame 
         self._AF = False
         self._AR = False
+        self._pymol = False
         self.synchronize()
  
     def Set(self,reset=False,**kw):
@@ -403,6 +434,9 @@ class epmvAdaptor:
         val = kw.pop( 'useModeller', None)
         if val is not None:
             self.useModeller = val
+        val = kw.pop( 'usePymol', None)
+        if val is not None:
+            self.usePymol = val
         val = kw.pop( 'synchro_ratio', None)
         if val is not None:
             self.synchro_ratio = val
@@ -419,8 +453,9 @@ class epmvAdaptor:
         
         @rtype:   MolecularViewer
         @return:  a PMV object session.
-        """    
-        mv = MoleculeViewer(logMode = 'overwrite', customizer=None, 
+        """  
+        customizer = ePMV.__path__[0]+os.sep+"epmvrc.py"
+        mv = MoleculeViewer(logMode = 'overwrite', customizer=customizer, 
                             master=None,title='pmv', withShell= 0,
                             verbose=False, gui = False)
 
@@ -529,6 +564,25 @@ class epmvAdaptor:
             return selname,mol#? 
         return mname,mol
 
+    def sortName(self,array):
+        stringselection=""
+        for element in array:
+            if ":" in element :
+                stringselection+=element+";"
+            else : return element
+        return stringselection 
+
+    def toStringSel(self,array):
+        stringselection=""
+        print array
+        for sel in array:
+            for elem in sel :
+                print elem,str(elem)
+                stringselection+=str(elem)+":"
+            stringselection=stringselection[:-1]+";"
+        print stringselection
+        return stringselection
+
     def getSelectionLevel(self,mol,selString):
         #fix...problem if multiple chain...
         #R=mol.chains[0].residues
@@ -547,17 +601,21 @@ class epmvAdaptor:
         elif selection == 'picked' and self.gui is not None: 
             #need to get the current object selected in the doc
             #and parse their name to recognize the atom selection...do we define a picking level ? and some phantom object to be picked?                  
-            CurrSel=self._getCurrentSelection()
+            CurrSel=self.helper.getCurrentSelection()
             astr=[]
             for o in CurrSel : 
-                #print o.get_name()#,o.get_type()
+                print o,self.parseObjectName(o)
                 astr.append(self.parseObjectName(o))
-            sel=self.sortName(astr)
+            sel=self.toStringSel(astr)
             print "parsed selection ",sel
-            #sel=mol.name
+            print "from ",astr
+            #should be #B_MOL:CHAIN:RESIDUE:ATOMS
+            #thus atoms = 
+            #sel=mol.name astr[3]
         selection = self.mv.select(str(sel),negate=False, only=True, xor=False, 
                                    log=0, intersect=False)
         if not isinstance(selection,Atom) : selection = selection.findType(Atom)
+        print self,selection
         return sel,selection
 
     def getSelectionCommand(self,selection,mol):
@@ -590,26 +648,37 @@ class epmvAdaptor:
         """    
         
         if isinstance(event, DeleteAtomsEvent):
-            action='delete'
-        print action
-        #when atom are deleted we have to redo the current representation and 
-        #selection
-        atom_set = event.objects
-        #mol = atom_set[0].getParentOfType(Protein)
-        #need helperFunction to delete Objects
-        for i,atms in enumerate(atom_set):
-            nameo = "S"+"_"+atms.full_name()
-            o=self._getObject(nameo)
-            if o is not None :
-                print nameo
-                self.helper.deleteObject(o)
-            #and the ball/stick
-            nameo = "B"+"_"+atms.full_name()
-            o=self._getObject(nameo)
-            if o is not None :
-                print nameo
-                self.helper.deleteObject(o)
-            #and the bonds...and other geom?
+            action='deleteAt'
+            #when atom are deleted we have to redo the current representation and 
+            #selection
+            atom_set = event.objects
+            #mol = atom_set[0].getParentOfType(Protein)
+            #need helperFunction to delete Objects
+            for i,atms in enumerate(atom_set):
+                nameo = "S"+"_"+atms.full_name()
+                o=self._getObject(nameo)
+                if o is not None :
+                    print nameo
+                    self.helper.deleteObject(o)
+                #and the ball/stick
+                nameo = "B"+"_"+atms.full_name()
+                o=self._getObject(nameo)
+                if o is not None :
+                    print nameo
+                    self.helper.deleteObject(o)
+                #and the bonds...and other geom?            
+        elif isinstance(event, BeforeDeleteMoleculesEvent):
+            action='deletMol'
+            print action,dir(event)
+            mols = event.arg
+            for mol in mols :
+                print "delete",mol.name
+                self.delMolDic(mol.name)
+                self.delGeomMol(mol)
+            if self.gui is not None:
+                #need to update molmenu
+                self.gui.resetPMenu(self.gui.COMB_BOX["mol"])   
+                self.gui.restoreMolMenu()
             
             
     #the main function, call every time an a geom event is dispatch
@@ -658,6 +727,11 @@ class epmvAdaptor:
                 self._SecondaryStructure(mol,atms,options,extrude=True)
             if event.arg == "SSdisplay":
                 self._SecondaryStructure(mol,atms,options)
+        #the bead riibbon ?
+        #('bead', [nodes,[params,redraw]],setOn=setOn, setOff=setOff)
+        if event.arg == 'bead' and action =='edit' :
+            self._beadedRibbons(mol,atms,options[0])
+        #self.beadedRibbons("1crn", redraw=0, log=1)
         #################COLOR EVENT############################################
         elif event.arg[0:5] == "color" : #color Commands
             #in this case liste of geoms correspond to the first options
@@ -669,7 +743,8 @@ class epmvAdaptor:
         del self.mv.iMolData[mname]
         del self.mv.molDispl[mname]
         del self.mv.MolSelection[mname]
-
+        print self.mv.selections
+        
     def delGeomMol(self,mol):
         master = mol.geomContainer.masterGeom.obj
         self.helper.deleteChildrens(master)
@@ -688,7 +763,7 @@ class epmvAdaptor:
         """            
         if molname not in self.mv.molDispl.keys() :
             self.mv.molDispl[molname]={}
-            for k in ["cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
+            for k in ["cpk","bs","ss","bead","loft","arm","spline","surf","cms","meta"]:
                 self.mv.molDispl[molname][k]=False
             self.mv.molDispl[molname]["col"] = None
         if molname not in self.mv.MolSelection.keys() :
@@ -727,7 +802,7 @@ class epmvAdaptor:
         @param prefix: cpk or ball sphere geometry, ie "S" or "B"
         """            
         #TODO, fix problem with Heteratom that can have the same fullname
-        nameo = prefix+"_"+atms.full_name()
+        nameo = prefix+"_"+atms.full_name().replace("'","b")+"n"+str(atms.number)
         o=self._getObject(nameo)
         if o != None :
             self._toggleDisplay(o,display)
@@ -761,7 +836,7 @@ class epmvAdaptor:
             c0=numpy.array(atm1.coords)
             c1=numpy.array(atm2.coords)
             n1=atm1.full_name().split(":")
-            name="T_"+atm1.name+str(atm1.number)+"_"+atm2.name+str(atm2.number)
+            name="T_"+atm1.name.replace("'","b")+str(atm1.number)+"_"+atm2.name.replace("'","b")+str(atm2.number)
 #            name="T_"+atm1.name+str(atm1.number)+"_"+atm2.name+str(atm2.number)
 #            name="T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
 #            name="T_"+atm1.name+str(atm1.number)+"_"+atm2.name+str(atm2.number)   
@@ -777,16 +852,19 @@ class epmvAdaptor:
             n1=atm1.full_name().split(":")
             n2=atm2.full_name().split(":")
             name1="T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
-            name2="T_"+molname+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name	                            
+            name2="T_"+molname+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name
+            name1 = name1.replace("'","b")
+            name2 = name2.replace("'","b")            
+            #print atm1,atm2,c0,c1,vect,numpy.array(c0+(vect/2.))
             o=self._getObject(name1)
             if o != None : 
                 if needRedo : 
-                    self._updateTubeObj(o,c0,(c0+(vect/2.)))
+                    self._updateTubeObj(o,c0,numpy.array(c0+(vect/2.)))
                 self._toggleDisplay(o,display=display)
             o=self._getObject(name2)
             if o != None : 
                 if needRedo : 
-                    self._updateTubeObj(o,(c0+(vect/2.)),c1) 
+                    self._updateTubeObj(o,numpy.array(c0+(vect/2.)),c1) 
                 self._toggleDisplay(o,display=display)
         if self.use_progressBar  and (i%20)==0 : 
                 progress = float(i) / N
@@ -993,7 +1071,8 @@ class epmvAdaptor:
         chobj = mol.geomContainer.masterGeom.chains_obj
         display = not options[1]
         i=0
-        if extrude :display = options[9]
+        if extrude :
+            display = options[9]
         #check the ss 
         if not hasattr(chn,"secondarystructureset"):
             return
@@ -1007,7 +1086,9 @@ class epmvAdaptor:
                 #get the geom or the extruder ?
                 ex=elem.exElt
                 name = elem.name
+                print ex,display,hasattr(ex,"obj")
                 if not hasattr(ex,"obj") and display :
+                    print mol.name+"_"+ch.name+"_"+name
                     parent=self._getObject(chobj[ch.name+"_ss"])                  
                     self.createMesh(mol.name+"_"+ch.name+"_"+name,ex,parent=parent)
                     elem.exElt.name = name
@@ -1018,9 +1099,22 @@ class epmvAdaptor:
                             break
                     matname = "mat_"+self.helper.getName(ex.obj)
                     self.helper.colorMaterial(matname, color)
+                    if ch.ribbonType()=='NA':
+                        #name = mol.name+"_"+c.name+"_lader"
+                        #make the ladder
+                        g = mol.geomContainer.geoms[ex.ssElt.name+ch.name]
+                        if hasattr(ex,"obj") :
+                            parent = ex.obj
+                        laders=self.NAlader("rib",mol,ch,parent = parent,bilader=False)[0]
+                        g.children[0].obj = laders
                 elif hasattr(ex,"obj") : 
-                    self._updateMesh(ex) 
+                    self._updateMesh(ex)
+                    print "d",ex.obj,display
                     self._toggleDisplay(ex.obj,display)
+                    if ch.ribbonType()=='NA':
+                        o=self._getObject("rib"+mol.name+"_"+ch.name+"_lader")
+                        #self._toggleDisplay(o,display)
+                print "after",ex,display,hasattr(ex,"obj")
             if selection :
                 break
             if self.use_progressBar  and (i%20)==0 :
@@ -1028,7 +1122,138 @@ class epmvAdaptor:
                 self._progressBar(progress, 'add SS to scene')
                 i+=1
         self.colorProxyObject = proxy
-		                    
+
+    def _beadedRibbons(self,mol,atms,params):
+        """
+        Callback for display/extrudeSecondaryStructrure commands. Create and update 
+        the mesh polygons for representing the secondary structure
+        
+        
+        @type  mol: MolKit.Protein
+        @param mol: the molecule affected by the command
+        @type atms: MolKit.AtomSet
+        @param atms: the atom selection
+        @type  options: list
+        @param options: the list of option used for the command alos found by mol.beadedRibbonParams:
+             \nquality --- number of segments per residue (default 12)
+             \ntaperLength --- number of points needed to close (taper off) the ribbon (default quality/2)
+             \nhelixBeaded --- if set to True - add beads to helix (default True)  
+             \nhelixWidth ---(default 1.6)
+             \nhelixThick --- if set to True - add thikness to helix (default True)
+             \nhelixThickness --- helix thickness (default.20 )
+             \nhelixBeadRadius --- radius of helix beads(default 0.32)
+             \nhelixColor1 --- helix outside color(default(1,1,1)
+             \nhelixColor2 --- helix inside color (default1,0,1)
+             \nhelixBeadColor1 --- color of beads on one side of helix (default (1,1,1))
+             \nhelixBeadColor2  --- color of beads on the other side of helix (default (1,1,1) )
+             
+             \ncoilRadius --- coil radius(default 0.2)
+             \ncoilColor --- coil color (default (1,1,1))
+             
+             \nturnRadius --- turn radius (default 0.2)
+             \nturnColor --- turn color (default (0,0,1))
+             
+             \nsheetBeaded --- (if set to True - add beads to sheet (default True)
+             \nsheetWidth --- width of sheet(default 1.6)
+             \nsheetBodyStartScale --- (default 0.4)
+             \nsheetThick --- if set to True - add thikness to sheet(default True)
+             \nsheetThickness --- sheet thickness (default .20)
+             \nsheetBeadRadius --- radius of sheet's beads (default 0.32)
+             \nsheetColor1 --- sheet outside color (default (1,1,0) )
+             \nsheetColor2 --- sheet inside color (default (0,1,1) )
+             \nsheetBeadColor1 --- color of beads  on one side of sheet (default (1,1,1) )
+             \nsheetBeadColor2 --- color of beads on the other side of beads (default (1,1,1) )
+             \nsheetArrowhead --- if set to True - add arrows to sheet(default True)
+             \nsheetArrowheadWidth --- width of sheet's arrow (default 2.0)
+             \nsheetArrowHeadLength --- length of sheet's arrow (default 8)        
+        """ 
+        #display option ?
+        chname=['Z','Y','X','W','V','U','T']
+        proxy = self.colorProxyObject
+        self.colorProxyObject = False
+        sc = self._getCurrentScene()
+        mol = mol[0]
+        sel=atms[0]
+#        print mol, sel, len(mol.allAtoms) != len(sel)
+        selection = len(mol.allAtoms) != len(sel)
+        chn = sel[0].getParentOfType(Chain)
+#        print chn
+        root = mol.geomContainer.masterGeom.obj
+        chobj = mol.geomContainer.masterGeom.chains_obj
+        #display = not options[1]
+        i=0
+        #if extrude :display = options[9]
+        #check the ss 
+        if not hasattr(chn,"secondarystructureset"):
+            return
+        for ch in mol.chains:
+#            print ch.name
+            if selection and ch is chn:
+                ch = chn
+#                print chn.name
+            parent = self._getObject(chobj[ch.name+"_ss"])
+            #should create a new parent beadedribbon
+            beadparent = self.helper.newEmpty(mol.name+ch.name+"_bead")
+            self.helper.addObjectToScene(sc,beadparent,parent=parent)
+            for SS in ch.secondarystructureset: #for i, SS in enumerate(chain.secondarystructureset)
+                #get the geom or the extruder ?
+                name = SS.name
+                type = SS.structureType
+                lgeoms=[]
+                lcolors=[]
+                #need mv to findGeomFromName
+                #depending on Thickness number of geometry will change...
+                if type == "Strand":
+                    elem = ["_edge1","_edge2","_faces","_faces2","_sides"]
+                    colors = [params['sheetBeadColor1'],params['sheetBeadColor2'],
+                            params['sheetColor1'],params['sheetColor2'],col.greenyellow]
+                elif type == "Helix":
+                    elem = ["_edge1","_edge2","A_faces","_faces2","_sides"]
+                    colors = [params['helixBeadColor1'],params['helixBeadColor2'],
+                            params['helixColor1'],params['helixColor2'],col.greenyellow]
+                elif type == "Coil" or type == 'Turn':
+                    elem = [""]
+                    colors = [params['coilColor']]
+                for i,e in enumerate(elem) :
+                    fullname = '%s|beadedRibbon|chain%s|%s'%(
+                                    mol.name, ch.id, SS.name+e)
+                    geom = self.mv.FindObjectByName_noGui(mol.geomContainer.masterGeom,fullname)
+                    print fullname,"found",geom
+                    lgeoms.append(geom)
+                    lcolors.append(colors[i])
+                #get beadedGeom
+                for i,g in enumerate(lgeoms) :
+                    if not hasattr(g,"obj") :                
+                        self.createMesh(mol.name+"_"+ch.name+"_"+g.name,g,parent=beadparent)
+                        #color it 
+                        matname = "mat_"+self.helper.getName(g.obj)
+                        self.helper.colorMaterial(matname, lcolors[i])
+#                    if ch.ribbonType()=='NA':
+#                        #name = mol.name+"_"+c.name+"_lader"
+#                        #make the ladder
+#                        g = mol.geomContainer.geoms[ex.ssElt.name+ch.name]
+#                        if hasattr(ex,"obj") :
+#                            parent = ex.obj
+#                        laders=self.NAlader("rib",mol,ch,parent = parent,bilader=False)[0]
+#                        g.children[0].obj = laders
+                    elif hasattr(g,"obj") :
+#                        pass 
+                        self._updateMesh(g) 
+                        matname = "mat_"+self.helper.getName(g.obj)
+                        self.helper.colorMaterial(matname, lcolors[i])                        
+#                        self._toggleDisplay(g.obj,display)
+#                        if ch.ribbonType()=='NA':FindObjectByName_noGui
+#                            o=self._getObject("rib"+mol.name+"_"+ch.name+"_lader")
+#                            #self._toggleDisplay(o,display)
+
+                    if selection :
+                        break
+                    if self.use_progressBar  and (i%20)==0 :
+                        progress = float(i) / 100#len(self.mv.sets.keys())
+                        self._progressBar(progress, 'add SS to scene')
+                        i+=1
+        #self.colorProxyObject = proxy
+
     def _computeMSMS(self, mol,atms,options):
         """
         Callback for computation of MSMS surface. Create and update 
@@ -1107,8 +1332,8 @@ class epmvAdaptor:
         if atm1 in atoms or atm2 in atoms : 
             vcolors=[atm1.colors["sticks"],atm2.colors["sticks"]]
             if not self.bicyl :
-                n1=atm1.full_name().split(":")
-                name="T_"+mol.name+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name                
+                n1=atm1.full_name().split(":").replace("'","b")
+                name="T_"+mol.name+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name.replace("'","b")              
 #                name="T_"+atm1.name+str(atm1.number)+"_"+atm2.name+str(atm2.number)
                 o=self._getObject(name)
                 if o != None :
@@ -1118,7 +1343,9 @@ class epmvAdaptor:
                 n1=atm1.full_name().split(":")
                 n2=atm2.full_name().split(":")
                 name1="T_"+mol.name+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
-                name2="T_"+mol.name+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name	                            
+                name2="T_"+mol.name+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name	 
+                name1 = name1.replace("'","b")
+                name2 = name2.replace("'","b")            
                 o=self._getObject(name1)
                 if o != None : 
                     self._checkChangeMaterial(o,fType,
@@ -1151,7 +1378,7 @@ class epmvAdaptor:
         @type  geom: str
         @param geom: the parent geometry ie cpk or balls
         """         
-        name = prefix+"_"+atm.full_name()
+        name = prefix+"_"+atm.full_name().replace("'","b")+"n"+str(atm.number)
         o=self._getObject(name)
         vcolors = [atm.colors[geom],]
         if o != None :     
@@ -1424,8 +1651,9 @@ class epmvAdaptor:
         return citation
 
     def testNumberOfAtoms(self,mol):
+        print "testNumberOfAtoms",mol
         nAtoms = len(mol.allAtoms)
-        if nAtoms > 5000 :
+        if nAtoms > self.max_atoms :
             mol.doCPK = False
         else :
             mol.doCPK = True
@@ -1514,21 +1742,26 @@ class epmvAdaptor:
         
         mname = mol.name
         disp = self.mv.molDispl[mname]
-        if disp.has_key("loft"):
-            if disp["loft"] :
-                #verify in c4d and blender
-                self.helper.update_spline("loft"+mol.name+"_spline",mol.allAtoms.get("CA").coords)        
+        at = "CA"
         for c in mol.chains :
+            if c.ribbonType()=='NA':
+                        at = "O5'"
             if disp.has_key("spline"):
                 if disp["spline"] :
-                    self.helper.update_spline(mol.name+"_"+c.name+"spline",c.residues.atoms.get("CA").coords)
-
+                    self.helper.update_spline(mol.name+"_"+c.name+"spline",c.residues.atoms.get(at).coords)
+            if disp.has_key("loft"):
+                if disp["loft"] :
+                    if c.ribbonType()=='NA':
+                        #need to update the laders
+                        self.updateNAlader("loft",mol,c)
+                    #verify in c4d and blender
+                    self.helper.update_spline("loft"+mol.name+"_"+c.name+"_spline",mol.allAtoms.get(at).coords)        
             if self.doCloud : 
                 self.helper.updatePoly(mol.name+":"+c.name+"_cloud",vertices=c.residues.atoms.coords)
             #look if there is a msms:
 #        #find a way to update MSMS and coarse
-#        if self.mv.molDispl[mname][3] : self.gui.updateSurf()
-#        if self.mv.molDispl[mname][4] : self.gui.updateCoarseMS()
+#        if self.mv.molDispl[mname][3] : self.gui.updateMSMS()
+#        if self.mv.molDispl[mname][4] : self.gui.updateCMS()
     
     def updateData(self,traj,step):
         """
@@ -1628,8 +1861,8 @@ class epmvAdaptor:
                             return False
                     traj[0].player.applyState(i)
                     self.updateDataGeom(mol)
-                    if self.mv.molDispl[mname]["surf"] : self.gui.updateSurf()
-                    if self.mv.molDispl[mname]["cms"] : self.gui.updateCoarseMS()                    
+                    if self.mv.molDispl[mname]["surf"] : self.gui.updateMSMS()
+                    if self.mv.molDispl[mname]["cms"] : self.gui.updateCMS()                    
                     self.helper.update()
                     self._render("md%.4d" % i,640,480)
             elif traj[1] == 'model':
@@ -1645,8 +1878,8 @@ class epmvAdaptor:
                         event = EditAtomsEvent('coords', mol.allAtoms)
                         self.mv.dispatchEvent(event)
                         self.updateDataGeom(mol)
-                        if self.mv.molDispl[mname]["surf"] : self.gui.updateSurf()
-                        if self.mv.molDispl[mname]["cms"] : self.gui.updateCoarseMS()
+                        if self.mv.molDispl[mname]["surf"] : self.gui.updateMSMS()
+                        if self.mv.molDispl[mname]["cms"] : self.gui.updateCMS()
                         self.helper.update()
                         self._render("model%.4d" % i,640,480)
 
@@ -1697,7 +1930,8 @@ class epmvAdaptor:
     def APBS2MSMS(self,grid,surf=None,offset=1.0,stddevM=5.0):
         """
         Map a surface mesh using grid (APBS,AD,...) values projection.
-        This code is based on the Pmv vision node network which color a MSMS using a APBS computation.
+        This code is based on the Pmv vision node network which color a 
+        MSMS using a APBS computation.
         
         @type  grid: grids3D
         @param grid: the grid to project
@@ -1717,14 +1951,13 @@ class epmvAdaptor:
         datadev = util.stddev(data)*stddevM
         #need to make a colorMap from this data
         #colorMap should be the rgbColorMap
-        from Pmv import hostappInterface
-        cmap = hostappInterface.__path__[0]+"/apbs_map.py"
+        cmap = ePMV.__path__[0]+"/apbs_map.py"
         lcol = self.colorMap(colormap='rgb256',mini=-datadev,
                              maxi=datadev,values=data,filename=cmap)
-        if self.soft =="c4d":
-            self._changeColor(surf,lcol,proxyObject=True)
-        else :
-            self._changeColor(surf,lcol)
+#        if self.soft =="c4d":
+#            self._changeColor(surf,lcol,proxyObject=True)
+#        else :
+        self._changeColor(surf,lcol)
 
     def getSurfaceVFN(self,geometry):
         """
@@ -1737,7 +1970,7 @@ class epmvAdaptor:
         @rtype:   list
         @return:  faces,vertices,vnormals of the geometry
         """         
-        
+        print "ok",geometry
         if geometry:
             if not hasattr(geometry,'asIndexedPolygons'):
                 f=None
@@ -1874,6 +2107,13 @@ class epmvAdaptor:
                 listExtension.append('ARViewer')
             except:
                 print "noARViewer"
+        if not self._pymol:
+            try :
+                import chempy
+                self._pymol= True
+                listExtension.append('PyMol')
+            except :
+                print "no pymol"
         return listExtension
 
     #from the helper, may change in c4d, maya to check
@@ -1911,17 +2151,23 @@ class epmvAdaptor:
         return parent
 
     def parseObjectName(self,o):
-        if type(o) == str : name=o
+        import re
+        if type(o) == str or type(o) == unicode : name=o
         else : name=self.helper.getName(o)
         tmp=name.split("_")
         if len(tmp) == 1 : #no "_" so not cpk (S_) or ball (B_) stick (T_) or Mesh (Mesh_)
             return ""
         else :
             if tmp[0] == "S" or tmp[0] == "B" : #balls or cpk
-                if len(tmp) == 3 : #molname include '_'
+                if len(tmp) == 3 or len(tmp) > 5: #molname include '_'
                     hiearchy=name[2:].split(":")
-                else :           
-                    hiearchy=tmp[1].split(":") #B_MOL:CHAIN:RESIDUE:ATOMS        
+                else :
+                    hiearchy=tmp[1].split(":") #B_MOL:CHAIN:RESIDUE:ATOMS
+                    if len(hiearchy) == 1 :
+                        hiearchy=tmp[1:]
+                atn = hiearchy[-1]
+                print "atn",atn
+                hiearchy[-1] = atn.split("n")[0].replace('b',"'") #problem some atom have number.
                 return hiearchy
         return ""
         
@@ -1939,6 +2185,7 @@ class epmvAdaptor:
 
     def splitName(self,name):
     #general function-> in the adaptor ?
+    #this function is overwrite in maya
         if name[0] == "T" : #sticks name.. which is "T_"+chname+"_"+Resname+"_"+atomname+"_"+atm2.name\n'
             tmp=name.split("_")
             return ["T",tmp[1],tmp[2],tmp[3][0:1],tmp[3][1:],tmp[4]]
@@ -1974,7 +2221,6 @@ class epmvAdaptor:
                     geom.mesh=self.helper.getName(obj[1])
                     geom.obj=self.helper.getName(obj[0])
         else : geom.obj=self.helper.getName(obj)
-
     
     def setupMaterials(self):
         #Atoms Materials
@@ -2038,8 +2284,7 @@ class epmvAdaptor:
             if self.host == 'maya' : 
                 matname = ""
         names=self.splitName(self.helper.getName(o))
-        
-        print "current mat ", matname
+        print "current mat ", matname,names
         newmat = None
         self.changeMaterialSchemColor(typeMat)
         if typeMat == "" :#material by colorname-> function from rgb give color name...
@@ -2078,6 +2323,7 @@ class epmvAdaptor:
         elif typeMat == "ByAtom" :
             print matname
             if str(matname) not in self.AtmRadi.keys() : #switch to atom materials
+                #print names[5][0]
                 if names[5][0] not in AtomElements.keys() : 
                     self.helper.assignMaterial(o,[self.helper.getMaterial('A')])
                 else :
@@ -2131,16 +2377,17 @@ class epmvAdaptor:
                 for ss in SecondaryStructureType.keys()] 
         else : pass
 
-    
-    def oneStick(self,atm1,atm2,hiera,instance,parent):
+    def oneStick(self,atm1,atm2,hiera,instance,parent,n=None):
         #mol=atm1.getParentOfType(Protein)
         c0=numpy.array(atm1.coords)
         c1=numpy.array(atm2.coords)
-        name="T_"+atm1.name+str(atm1.number)+"_"+atm2.name+str(atm2.number)
+        name="T_"+atm1.name.replace("'","b")+str(atm1.number)+"_"+atm2.name.replace("'","b")+str(atm2.number)
+        if n is not None :
+            name = n+name
         mat = self.helper.getMaterial('sticks')
         obj=self.helper.oneCylinder(name,c0,c1,instance,material=mat)
         if parent is not None : self.helper.reParent([obj,],parent)
-        self.helper.toggleDisplay(obj,display=False)
+        #self.helper.toggleDisplay(obj,display=False)
         return obj
 
     def biStick(self,atm1,atm2,hiera,instance,parent):
@@ -2156,7 +2403,9 @@ class epmvAdaptor:
         #ResidueSetSelector.r_keyD
         
         name1="T_"+mol.name+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
-        name2="T_"+mol.name+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name	        
+        name2="T_"+mol.name+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name
+        name1 = name1.replace("'","b")
+        name2 = name2.replace("'","b")
     #    name1="T_"+n1[1]+"_"+n1[2]+"_"+n1[3]+"_"+atm2.name
     #    name2="T_"+n2[1]+"_"+n2[2]+"_"+n2[3]+"_"+atm1.name
         if atm1.name[0] not in AtomElements.keys() : atN="A"
@@ -2174,7 +2423,7 @@ class epmvAdaptor:
         if parent is not None : self.helper.reParent([obj1,obj2],parent)
         self.helper.toggleDisplay(obj1,display=False)
         self.helper.toggleDisplay(obj2,display=False)
-        return [obj1,obj2]        
+        return obj1,obj2        
 
     def _Tube(self,set,sel,points,faces,scn,armObj,res=32,size=0.25,sc=2.,join=0,
              instance=None,hiera = 'perRes',bicyl=False,pb=False):
@@ -2188,7 +2437,8 @@ class epmvAdaptor:
             parent=self.helper.newEmpty(mol.name+"_b_sticks")
             self.helper.addObjectToScene(sc,parent,
                         parent=mol.geomContainer.masterGeom.obj)
-            self.helper.toggleDisplay(parent,False)
+            if self.host != "c4d":
+                self.helper.toggleDisplay(parent,False)
             instance=self.helper.newEmpty(mol.name+"_b_sticks_shape")
             self.helper.addObjectToScene(sc,instance,parent=parent)
             cyl = self.helper.Cylinder(mol.name+"_b_sticks_o",res=res)
@@ -2210,27 +2460,208 @@ class epmvAdaptor:
             parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_balls"])        
             print c,parent
             oneparent=True
-            for i,bond in enumerate(bonds):
-#                p = self.findatmParentHierarchie(bond.atom1,'B',hiera)
-#                print "p", parent
-#                if p != parent : 
-#                    cp = p
-#                    oneparent=False
-#                else : cp = parent
-                if bicyl :
-                    stick.extend(self.biStick(bond.atom1,bond.atom2,
-                                hiera,instance,parent=parent))
-                else :
-                    stick.append(self.oneStick(bond.atom1,bond.atom2,
-                                hiera,None,parent=parent))
-                if pb and (i%50) == 0:
-                    progress = float(i) / len(bonds)
-                    self._progressBar(progress, 'creating bonds sticks')
-                    #self.gui.ProgressBar(progress, 'creating bonds sticks')
-#            if oneparent :
-#                self.helper.reParent(stick,parent)
+            if pb :
+                self._resetProgressBar()
+                self._progressBar(0., 'creating bonds sticks')
+            stick = []
+            if bicyl :
+                stick = [self.biStick(bond.atom1,bond.atom2,
+                                hiera,instance,parent=parent) for bond in bonds] 
+            else :
+                stick = [self.oneStick(bond.atom1,bond.atom2,
+                                hiera,None,parent=parent) for bond in bonds]
+#            for i,bond in enumerate(bonds):
+##                p = self.findatmParentHierarchie(bond.atom1,'B',hiera)
+##                print "p", parent
+##                if p != parent : 
+##                    cp = p
+##                    oneparent=False
+##                else : cp = parent
+#                if bicyl :
+#                    stick.extend(self.biStick(bond.atom1,bond.atom2,
+#                                hiera,instance,parent=parent))
+#                else :
+#                    stick.append(self.oneStick(bond.atom1,bond.atom2,
+#                                hiera,None,parent=parent))
+#                if pb and (i%50) == 0:
+#                    progress = float(i) / len(bonds)
+#                    self._progressBar(progress=progress)
+#                    #self.gui.ProgressBar(progress, 'creating bonds sticks')
+##            if oneparent :
+##                self.helper.reParent(stick,parent)
             sticks.extend(stick)
         return [sticks,instance]
+
+    def NAlader(self,name,mol,chain,res=32,size=0.25,sc=2.,parent = None,
+               join=0,instance=None,hiera = 'perRes',bicyl=False,pb=False,
+               bilader=True):
+        natype={"A":"DA","G":"DG","C":"DC","T":"DT","U":"DU",
+                "DA":"DA","DG":"DG","DC":"DC","DT":"DT","DU":"DU",
+                "CBR":"DC"}
+        residues = chain.residues
+        total_res = len(residues)
+        sc = self.helper.getCurrentScene()
+        root = mol.geomContainer.masterGeom.obj
+        if parent is not None :
+            root = parent
+        parent = self.helper.getObject(name+mol.name+chain.name+"_lader")
+        if parent is None :
+            parent=self.helper.newEmpty(name+mol.name+chain.name+"_lader")
+            self.helper.addObjectToScene(sc,parent,parent=root)            
+        if instance == None:
+            instance = self.helper.getObject(mol.name+"_b_lader_cyl")
+            if instance is None :
+                pinstance=self.helper.newEmpty(mol.name+"_b_lader_shape")
+                self.helper.addObjectToScene(sc,pinstance,
+                                         parent=mol.geomContainer.masterGeom.obj)
+                instance=self.helper.newEmpty(mol.name+"_b_lader_cyl")
+                self.helper.addObjectToScene(sc,instance,
+                                         parent=pinstance)
+                cyl = self.helper.Cylinder(mol.name+"_b_lader_o",res=res,radius=0.5)
+                self.helper.reParent(cyl,instance)
+#            self.helper.toggleDisplay(cyl,display=False)
+#            if self.host == "blender":
+#                baseCyl= self.helper.Cylinder("baseCyl_lader",radius=0.5,length=1.,res=res)
+#                self.helper.toggleDisplay(baseCyl,display=False)
+#                instance = self.helper.getMesh("mesh_"+mol.name+"_b_lader_o")
+#            elif self.host == "maya":
+##                self.helper.toggleDisplay(cyl,display=False)
+#                instance = cyl
+#            elif self.host == "c4d": 
+#                instance = instance
+        if pb :
+            self._resetProgressBar()
+            self._progressBar(0., 'creating dna/rna laders')
+        #try P
+        pinstance= self.helper.getObject(mol.name+"_b_lader_shape")
+        basesphere = self.helper.getObject(mol.name+"_lader_sp")
+        if basesphere is None :
+            basesphere = self.helper.newEmpty(mol.name+"_lader_sp")
+            self.helper.addObjectToScene(sc,basesphere,parent=pinstance)
+            meshsphere,basesm=self.helper.Sphere(mol.name+"_lader_bsp",
+                                                parent=basesphere,radius=0.5)
+        #if self.host != "c4d":
+        #    basesphere = self.helper.getMesh(mol.name+"_lader_bsp")
+        sticks=[]
+        #parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_balls"])
+        for i in range(total_res):
+            stick=[]
+            #need two point per residues P->C6 / C6->N3 C T 
+            #need two point per residues P->C8 / C8->N1 ['A', 'G', 'DA', 'DG']
+            NA_type = residues[i].type.strip()
+            try :
+                #at1 = residues[i].atoms.objectsFromString('P')[0]
+                at1 = residues[i].atoms.objectsFromString("O5'")[0]
+            except :
+                continue
+                #at1 = residues[i].atoms[0]#take first atoms # or last ?
+            if NA_type in ['A', 'G', 'DA', 'DG']:
+                at2 = residues[i].atoms.objectsFromString('C8')[0]
+                at3 = residues[i].atoms.objectsFromString('N1')[0]
+            else :
+                at2 = residues[i].atoms.objectsFromString('C6')[0]
+                at3 = residues[i].atoms.objectsFromString('N3')[0]
+            print "natype",NA_type,natype[NA_type],residues[i].name #CBR 21 ?? is a CYTIDINE
+            mat = self.helper.getMaterial(natype[NA_type])#of the resdiues
+            if mat is None :
+                mat = self.helper.getMaterial("A")
+            print mat
+            sph=self.helper.newInstance(name+at1.full_name(),basesphere,location=at1.coords)
+            self.helper.addObjectToScene(sc,sph,parent=parent)
+            self.helper.assignMaterial(mat,sph)
+            if bilader :
+                sph=self.helper.newInstance(name+at2.full_name(),basesphere,location=at2.coords)
+                self.helper.addObjectToScene(sc,sph,parent=parent)
+                self.helper.assignMaterial(mat,sph)
+            sph=self.helper.newInstance(name+at3.full_name(),basesphere,location=at3.coords)
+            self.helper.addObjectToScene(sc,sph,parent=parent)
+            self.helper.assignMaterial(mat,sph)
+
+            if bilader :
+                stick.append(self.oneStick(at1,at2,
+                            hiera,instance,parent=parent,n=name))
+                self.helper.assignMaterial(mat,stick[-1])
+                stick.append(self.oneStick(at2,at3,
+                            hiera,instance,parent=parent,n=name))
+                self.helper.assignMaterial(mat,stick[-1])
+            else :
+                stick.append(self.oneStick(at1,at3,
+                            hiera,instance,parent=parent,n=name))
+                self.helper.assignMaterial(mat,stick[-1])
+            sticks.extend(stick)
+            if pb and (i%10) == 0:
+                progress = float(i) / len(total_res)
+                self._progressBar(progress=progress)
+        if pb :
+            self._resetProgressBar()
+            self._progressBar(0., 'creating dna/rna laders')
+        return [parent,sticks,instance]
+
+    def updateNAlader(self,name,mol,chain,pb=False,bilader=True):
+        natype={"A":"DA","G":"DG","C":"DC","T":"DT","U":"DU",
+                "DA":"DA","DG":"DG","DC":"DC","DT":"DT","DU":"DU"}
+        residues = chain.residues
+        total_res = len(residues)
+        sc = self.helper.getCurrentScene()
+        if pb :
+            self._resetProgressBar()
+            self._progressBar(0., 'update dna/rna laders')
+        for i in range(total_res):
+            stick=[]
+            #need two point per residues P->C6 / C6->N3 C T 
+            #need two point per residues P->C8 / C8->N1 ['A', 'G', 'DA', 'DG']
+            NA_type = residues[i].type.strip()
+            try :
+                #at1 = residues[i].atoms.objectsFromString('P')[0]
+                at1 = residues[i].atoms.objectsFromString("O5'")[0]
+            except :
+                continue
+                #at1 = residues[i].atoms[0]#take first atoms # or last ?
+            if NA_type in ['A', 'G', 'DA', 'DG']:
+                at2 = residues[i].atoms.objectsFromString('C8')[0]
+                at3 = residues[i].atoms.objectsFromString('N1')[0]
+            else :
+                at2 = residues[i].atoms.objectsFromString('C6')[0]
+                at3 = residues[i].atoms.objectsFromString('N3')[0]
+            #print "natype",NA_type,natype[NA_type],residues[i].name #CBR 21 ?? is a CYTIDINE
+            c0=numpy.array(at1.coords)
+            c1=numpy.array(at2.coords)
+            c2=numpy.array(at3.coords)
+            self.setTranslation(name+at1.full_name(),pos=c0)
+            self.setTranslation(name+at3.full_name(),pos=c2)
+            if bilader :
+                self.setTranslation(at2.full_name(),pos=c1)
+                name=name+"T_"+at1.name.replace("'","b")+str(at1.number)+"_"+at2.name.replace("'","b")+str(at2.number)
+                o = self.helper.getObject(name)
+                self._updateTubeObj(o,c0,c1)
+                name=name+"T_"+at2.name.replace("'","b")+str(at2.number)+"_"+at3.name.replace("'","b")+str(at3.number)
+                o = self.helper.getObject(name)
+                self._updateTubeObj(o,c1,c2)
+            else :
+                name=name+"T_"+at1.name.replace("'","b")+str(at1.number)+"_"+at3.name.replace("'","b")+str(at3.number)
+                o = self.helper.getObject(name)
+                self._updateTubeObj(o,c0,c2)
+            if pb and (i%10) == 0:
+                progress = float(i) / len(total_res)
+                self._progressBar(progress=progress)
+        if pb :
+            self._resetProgressBar()
+            #self._progressBar(0., 'creating dna/rna laders')
+        return True
+        
+    def _editLines(self,molecules,atomSets):
+        pass
+        
+    def _updateLines(self,lines, chains=None):
+    	#lines = getObject(name)	
+    	#if lines == None or chains == None:
+    	    #print lines,chains	
+    	    parent = self.helper.getObject(chains.full_name())	
+    	    #print parent		
+    	    bonds, atnobnd = chains.residues.atoms.bonds
+    	    indices = map(lambda x: (x.atom1._bndIndex_,
+    								x.atom2._bndIndex_), bonds)
+    	    self.helper.updatePoly(lines,vertices=chains.residues.atoms.coords,faces=indices)
 
     def _updateMesh(self,geom):
         mesh=self.helper.getMesh(geom.mesh)
@@ -2263,7 +2694,12 @@ class epmvAdaptor:
             if name[-1] not in self.AtmRadi :
                 name="A"
             factor=float(cpkRad)+float(self.AtmRadi[name[-1]])*float(scale)                
-            self.helper.updateSphereMesh(name,basemesh="mesh_basesphere",scale=factor)
+            if hasattr(self,'spherestype'):
+                self.helper.updateSphereMesh(name,basemesh="mesh_basesphere",
+                                             scale=factor,typ=self.spherestype)
+            else :
+                self.helper.updateSphereMesh(name,basemesh="mesh_basesphere",
+                                             scale=factor)
 
     def updateMolAtomCoord(self,mol,index=-1,types='cpk'):
         #just need that cpk or the balls have been computed once..
@@ -2321,7 +2757,9 @@ class epmvAdaptor:
                 #updateRTSpline(s,selectedPoint)
             if  self.helper.getType(s) == self.helper.EMPTY or \
                     self.helper.getType(s) == self.helper.INSTANCE or \
-                    self.helper.getType(s) == self.helper.SPLINE:
+                    self.helper.getType(s) == self.helper.SPLINE or \
+                    self.helper.getType(s) == self.helper.BONES or \
+                    self.helper.getType(s) == self.helper.IK :
                 print "ok null" 
                 #molname or molname:chainname or molname:chain_ss ...
                 hi = self.parseName(self.helper.getName(s))

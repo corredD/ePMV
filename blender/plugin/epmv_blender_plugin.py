@@ -1,7 +1,7 @@
 #!BPY
 
 """
-Name: 'epmv'
+Name: 'ePMV'
 Blender: 249b
 Group: 'System'
 Tooltip: 'Molecular Viewer'
@@ -40,19 +40,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 #general import
 import sys
 import os
-import re
-import shutil
-from time import time
-import time as T
 import Blender
-global MGL_ROOT
-MGL_ROOT="/Library/MGLTools/1.5.6.up"
-def getMGL(filename):
-        MGL_ROOT=filename
-        print "whats upone",MGL_ROOT
-        f=open(mgldirfile,'w')
-        f.write(MGL_ROOT)
-        f.close()
         
 softdir = Blender.Get("homedir")
 prefdir = Blender.Get('uscriptsdir')
@@ -61,63 +49,13 @@ if prefdir is None:
 mgldirfile=prefdir+os.sep+"mgltoolsdir"
 personalize = False
 
-if len(MGL_ROOT) == 0 :  
-    if os.path.isfile(mgldirfile) :
-        f=open(mgldirfile,'r')
-        MGL_ROOT=f.readline()
-        f.close()
-    else :
-        personalize = True
-        if len(MGL_ROOT) == 0 :    
-            MGL_ROOT=Blender.Draw.PupStrInput("what is the path to MGLToolsPckgs?:", "untitled", 100)
-            if not os.path.exists(MGL_ROOT):
-                if not os.path.exists(MGL_ROOT+os.sep+".."+os.sep+"MGLToolsPckgs"):
-                    MGL_ROOT=Blender.Draw.PupStrInput("MGLToolsPckgs path:", "untitled", 100)
-                else :
-                    MGL_ROOT=MGL_ROOT+os.sep+".."+os.sep
-        if os.path.exists(MGL_ROOT):
-            f=open(mgldirfile,'w')
-            f.write(MGL_ROOT)
-            f.close()
-    
-if len(MGL_ROOT):
-    if sys.platform == 'win32':
-    #need to patch MGLTools first
-    #first patch MGLTools
-    #check if we need to patch
-        mgltoolsDir = MGL_ROOT+os.sep+"MGLToolsPckgs"
-        patch=os.path.isfile(mgltoolsDir+os.sep+"patched")
-        if not patch :
-            import urllib
-            import tarfile 
-            print mgltoolsDir+os.sep
-            patchpath = mgltoolsDir+os.sep
-            URI="http://mgldev.scripps.edu/projects/ePMV/patchs/depdtPckgs.tar"
-            tmpFileName = mgltoolsDir+os.sep+"depdtPckgs.tar"
-            if not os.path.isfile(tmpFileName):
-                urllib.urlretrieve(URI, tmpFileName)
-                #geturl(URI, tmpFileName)
-            TF=tarfile.TarFile(tmpFileName)
-            TF.extractall(patchpath)
-            #create the pacthed file
-            f=open(mgltoolsDir+os.sep+"patched","w")
-            f.write("MGL patched!")
-            f.close()
-#do I need to copy the file
-    plugfile = prefdir+os.sep+"epmv_blender_plugin.py"
-    print plugfile
-    if not os.path.isfile(plugfile) :
-        indir = MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+\
-            "blender"+os.sep+"plugin"+os.sep
-        outdir = prefdir+os.sep
-        print outdir
-        files=[]
-        files.append("epmv_blender_plugin.py")
-        files.append("blenderPmvClientGUI.py") 
-        files.append("epmv_blender_update.py")
-        for f in files : 
-            shutil.copy (indir+f, outdir+f)
-        print "copy"
+if os.path.isfile(mgldirfile) :
+    f=open(mgldirfile,'r')
+    MGL_ROOT=f.readline()
+    f.close()
+else :
+    Blender.Exit()
+
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
 if sys.platform == "win32":
     sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')

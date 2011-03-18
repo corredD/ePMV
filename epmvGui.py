@@ -4,10 +4,16 @@ Created on Mon Sep 13 08:38:56 2010
 
 @author: Ludovic Autin - ludovic.autin@gmail.com
 """
+import DejaVu
+DejaVu.enableVertexArray = False
 import os
+import pyubic
 from pyubic import uiadaptor
 from ePMV import comput_util as C
 import ePMV
+from MolKit.molecule import AtomSet
+from ePMV import comput_util as util
+from APBSCommands import APBSgui
 
 class ParameterModeller(uiadaptor):
     def setup(self,epmv,id=1005):
@@ -405,6 +411,287 @@ class ParameterScoringGui(uiadaptor):
         self._command(args)
         return True
           
+class Parameter_beadRibbons(uiadaptor):
+    def setup(self,epmv,id=None):
+        self.subdialog = True
+        self.block = True
+        self.title = "beadRibbons"
+        self.epmv = epmv
+        witdh=350
+        if id is not None :
+            id=id
+        else:
+            id = self.bid
+        #default value and parameters type
+        self.tapertypes=["sin","linear","cos"]
+        self.paramstype = {'quality':{"type":"inputInt","value":12},
+            'taperLength':{"type":"inputInt","value":6},
+            'taperType':{"type":"pullMenu","value":self.tapertypes},
+            'helixBeaded':{"type":"checkbox","value":1},
+            'helixWidth':{"type":"inputFloat","value":1.6},
+            'helixThick':{"type":"inputFloat","value":1},
+            'helixThickness':{"type":"inputFloat","value":0.20},
+            'helixBeadRadius':{"type":"inputFloat","value":0.32},
+            'helixColor1':{"type":"color","value":(1,1,1)},
+            'helixColor2':{"type":"color","value":(1,0,1)},
+            'helixBeadColor1':{"type":"color","value":(1,1,1)},
+            'helixBeadColor2':{"type":"color", "value":(1,1,1)}, 
+            'helixSideColor':{"type":"color","value":(1,1,1)},            
+            'coilRadius':{"type":"inputFloat","value":0.1},
+            'coilColor':{"type":"color","value":(1,1,1)},
+            'turnRadius':{"type":"inputFloat","value":0.1},
+            'turnColor':{"type":"color","value":(0,0,1)},
+            'sheetBeaded':{"type":"checkbox","value":1},
+            'sheetWidth':{"type":"inputFloat","value":1.6},
+            'sheetBodyStartScale':{"type":"inputFloat","value":0.4},
+            'sheetThick':{"type":"checkbox","value":1},
+            'sheetThickness':{"type":"inputFloat","value":0.20},
+            'sheetBeadRadius':{"type":"inputFloat","value":0.32},
+            'sheetColor1':{"type":"color","value":(1,1,0)},
+            'sheetColor2':{"type":"color","value":(0,1,1)},
+            'sheetBeadColor1':{"type":"color","value":(1,1,1)},
+            'sheetBeadColor2':{"type":"color","value":(1,1,1)},
+            'sheetSideColor':{"type":"color","value":(1,1,1)},            
+            'sheetArrowhead':{"type":"checkbox","value":1},
+            'sheetArrowheadWidth':{"type":"inputFloat","value":2.0},
+            'sheetArrowHeadLength':{"type":"inputInt","value":8},
+        }
+        #create the widget
+        #size order ???
+        self.PARAMS = {}
+        self.LABELS = {}
+        for key in self.paramstype : 
+            self.PARAMS[key] = self._addElemt(name=key,
+                                            width=40,height=10,
+                                            action=self.SetPreferences,type=self.paramstype[key]["type"],
+                                            icon=None,
+                                            value = self.paramstype[key]["value"],
+                                            variable=self.addVar(self.paramstype[key]["type"],self.paramstype[key]["value"]))
+            self.LABELS[key] = self._addElemt(label=key,width=100)
+        self.BTN={}
+        self.BTN["ok"] = self._addElemt(name="Update Bead",action=self.SetPreferences,width=50,
+                          type="button")
+        self.BTN["reset"] = self._addElemt(name="Reset to default",action=self.restorePreferences,width=50,
+                          type="button")
+
+        self.BTN["close"] = self._addElemt(name="Close",action=self.close,width=50,
+                          type="button")
+        
+        self.setupLayout()
+        return True
+
+    def setupLayout(self):
+        #form layout for each SS types ?
+        self._layout = []
+        ordered = self.PARAMS.keys()
+        ordered.sort()
+        #frame=[]
+        i=0
+        if self.host != "blender":
+            label=["helix","sheet","coil","turn","general"]
+            frame={}
+            elemframe={}
+            for l in label :
+                elemframe[l] = []
+            for key in ordered:
+                found = False
+                for l in label:
+                    if key.find(l) != -1 :
+                        elemframe[l].append([self.LABELS[key],self.PARAMS[key],])
+                        found = True
+                        break
+                if not found:
+                    elemframe["general"].append([self.LABELS[key],self.PARAMS[key],])
+            for l in label :
+                frame = self._addLayout(name=l,elems=elemframe[l],collapse=True)
+                self._layout.append(frame)
+        else:
+            while i < len(ordered)-1:#in range(len(ordered)/2):
+                self._layout.append([self.LABELS[ordered[i]],self.PARAMS[ordered[i]],
+                                    self.LABELS[ordered[i+1]],self.PARAMS[ordered[i+1]],
+                                    self.LABELS[ordered[i+2]],self.PARAMS[ordered[i+2]]])
+                i = i + 3
+            
+#        for key in ordered:
+#            self._layout.append([self.LABELS[key],self.PARAMS[key],])
+#        elemFrame=[]
+#        elemFrame.append([self.LOAD_BTN,self.LABEL_ID[0],self.LABEL_ID[1]])
+#        elemFrame.append([self.EDIT_TEXT,self.FETCH_BTN,self.COMB_BOX["pdbtype"]])
+##        elemFrame.append([self.LABEL_ID[2],self.COMB_BOX["mol"]])
+#        
+#        frame = self._addLayout(id=196,name="Get a Molecule",elems=elemFrame,collapse=False)
+#        self._layout.append(frame)
+#        
+        self._layout.append([self.BTN["reset"],])
+        self._layout.append([self.BTN["ok"],self.BTN["close"]])
+ 
+    def CreateLayout(self):
+        self._createLayout()
+        self.restorePreferences()
+        return True
+        
+    def SetPreferences(self,*args):
+        #get the value
+        #could use a general getCommand on the elem
+        param={}
+        for key in self.PARAMS:
+           param[key] = self.getVal(self.PARAMS[key])
+           print key,param[key]
+        #should I do it ? or wait for OK
+        #currentmol 
+        if hasattr(self.epmv.gui,'current_mol'):
+            mol = self.epmv.gui.current_mol
+            self.epmv.mv.beadedRibbons(mol,redraw=0,createEvents=False,**param)
+
+    def restorePreferences(self,*args):
+        for key in self.paramstype :
+            self.setVal(self.PARAMS[key],self.paramstype[key]["value"])
+        
+    def Command(self,*args):
+#        print args
+        self._command(args)
+        return True  
+
+from Pmv.pmvPalettes import AtomElements
+from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
+from Pmv.pmvPalettes import RasmolAmino, RasmolAminoSortedKeys
+from Pmv.pmvPalettes import Shapely
+from Pmv.pmvPalettes import SecondaryStructureType
+from Pmv.colorPalette import ColorPaletteNG,ColorPaletteFunctionNG
+
+class Parameter_pmvPalette(uiadaptor):
+    def setup(self,epmv,id=None):
+        self.subdialog = True
+        self.block = True
+        self.title = "pmv Palette"
+        self.epmv = epmv
+        witdh=350
+        if id is not None :
+            id=id
+        else:
+            id = self.bid
+        self.defaultColor = {
+            "atoms": AtomElements.copy(),
+            "atomsDG":DavidGoodsell.copy(),
+            "amino":RasmolAmino.copy(),
+            "aminoS":Shapely.copy(),
+            "ss":SecondaryStructureType.copy()
+            }
+        self.listPalettes={
+            "atoms": ["atoms type",AtomElements],
+            "atomsDG":["atoms polarity type",DavidGoodsell],
+            "amino":["residue type",RasmolAmino],
+            "aminoS":["residue shape type",Shapely],
+            "ss":["secondary structure",SecondaryStructureType]
+            }
+            
+        self.group={}
+        for key in self.listPalettes : 
+            self.group[key] = {}
+            palette = self.listPalettes[key][1]
+            self.group[key]["title"] = self._addElemt(label=self.listPalettes[key][0],width=100)
+            self.group[key]["widget"] = {}
+            for name in palette:
+                widget = self._addElemt(name=name,
+                                            width=40,height=10,
+                                            action=self.SetColors,type="color",
+                                            icon=None,
+                                            value = palette[name],
+                                            variable=self.addVar("color",palette[name]))
+                label = self._addElemt(label=name,width=100)
+                self.group[key]["widget"][name] = [label,widget]
+        self.BTN={}
+        self.BTN["ok"] = self._addElemt(name="Set Color",action=self.SetColors,width=50,
+                          type="button")
+        self.BTN["reset"] = self._addElemt(name="Reset to default",action=self.restoreColors,width=50,
+                          type="button")
+
+        self.BTN["close"] = self._addElemt(name="Close",action=self.close,width=50,
+                          type="button")
+        
+        self.setupLayout()
+        return True
+
+    def setupLayout(self):
+        #form layout for each SS types ?
+        self._layout = []
+        ordered = ["atoms","atomsDG","amino","aminoS","ss"]
+#        if self.host != "blender":
+        frame={}
+        elemframe={}
+        for l in ordered :
+            elemframe[l] = []
+        for key in ordered:
+            for name in self.group[key]["widget"]:
+                wi = self.group[key]["widget"][name][1]
+                la = self.group[key]["widget"][name][0]
+                elemframe[key].append([wi,la,])
+            frame = self._addLayout(name=self.listPalettes[key][0],
+                                    elems=elemframe[key],collapse=True,
+                                    type = "tab")
+            self._layout.append(frame)
+#        else:
+#            for key in ordered:
+#                title = self.group[key]["title"]
+#                self._layout.append([title,])
+#                for name in self.group[key]["widget"]:
+#                    print key,name,name in self.group[key]["widget"]
+#                    w = self.group[key]["widget"][name][1]
+#                    l = self.group[key]["widget"][name][0]
+#                    self._layout.append([l,w])
+        self._layout.append([self.BTN["reset"],])
+        self._layout.append([self.BTN["ok"],self.BTN["close"]])
+ 
+    def CreateLayout(self):
+        self._createLayout()
+        #self.restorePreferences()
+        return True
+        
+    def SetColors(self,*args):
+        #get the value
+        #could use a general getCommand on the elem
+        ordered = ["atoms","atomsDG","amino","aminoS","ss"]
+        fcolors = [self.epmv.mv.colorByAtomType,
+                          self.epmv.mv.colorAtomsUsingDG,
+                          self.epmv.mv.colorByResidueType,
+                          self.epmv.mv.colorResiduesUsingShapely,
+                          self.epmv.mv.colorBySecondaryStructure,
+                          self.epmv.mv.colorByChains]#,
+#                          self.epmv.mv.color,
+#                          self.epmv.mv.colorByProperty]
+        for i,key in enumerate(ordered) :
+            palette = self.listPalettes[key][1]
+            for name in palette:
+                w=self.group[key]["widget"][name][1]
+                color = self.getVal(w)
+                self.listPalettes[key][1][name] = color
+            lfction = None
+            lmenber = fcolors[i].palette.lookupMember
+            colorClass  = ColorPaletteNG
+            if hasattr(fcolors[i].palette,"lookupFunction"):
+                lfction = fcolors[i].palette.lookupFunction
+                colorClass = ColorPaletteFunctionNG(
+                self.listPalettes[key][0], self.listPalettes[key][1], readonly=0,
+                lookupFunction=lfction)
+            else :
+                fcolors[i].palette = colorClass(
+            self.listPalettes[key][0], self.listPalettes[key][1], readonly=0,
+            lookupMember=lmenber)
+        #need to update the palette attached to the MV commands
+        
+ 
+    def restoreColors(self,*args):
+        for key in self.defaultColor :
+            palette = self.defaultColor[key]
+            for name in palette:
+                w=self.group[key]["widget"][name][1]
+                self.setVal(w,palette[name])
+                self.listPalettes[key][1][name] = palette[name]
+                
+    def Command(self,*args):
+#        print args
+        self._command(args)
+        return True  
 
 class Parameter_epmvGUI(uiadaptor):
     def setup(self,epmv,id=None):
@@ -525,6 +812,8 @@ class Parameter_epmvGUI(uiadaptor):
         return True
 
 
+
+
 #should be called uiDialog, and uiSubDialog ?
 class epmvGui(uiadaptor):
     #TODO complete the command callback
@@ -533,9 +822,9 @@ class epmvGui(uiadaptor):
     status = 0
     link = 0
     nF=1000
-    __version__="0.2.0a"
+    __version__="0.3.1b"
     __about__="ePMV v"+__version__+"\n"
-    __about__+="""\
+    __about__+="""\:
 ePMV by Ludovic Autin,Graham Jonhson,Michel Sanner.
 Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 """
@@ -603,6 +892,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.epmv.checkExtension()
         self.initWidget()
         self.setupLayout()
+        self.pymolgui = None
+        self.pym = None
 
     def CreateLayout(self):
         self._createLayout()
@@ -650,23 +941,34 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                 if r[1] == "readMolecule" :
                     self.submenu[str(self.id-1)]=self._addElemt(name=r[0],
                                                     action=self.loadRecentFile)
+        #self.apbsub = {}
+        #self.apbsub[str(self.id-1)]=self._addElemt(name="Compute Potential Using APBS",
+        #                                            action=self.runAPBS)
+        
         self._menu = self.MENU_ID = {"File":
                       [self._addElemt(name="Recent Files",action=None,sub=self.submenu),
                       self._addElemt(name="Open PDB",action=self.browsePDB),#self.buttonLoad},
                       self._addElemt(name="Open Data",action=self.browseDATA)],#self.buttonLoadData
                        "Edit" :
-                      [self._addElemt(name="Options",action=self.drawPreferences)],#self.drawPreferences}],
+                      [self._addElemt(name="Options",action=self.drawPreferences),
+                       self._addElemt(name="Colors palettes",action=self.drawPalette),
+                      ],
+                      #  "Compute" :
+                      #[self._addElemt(name="Electrostatics",action=None,sub=self.apbsub),
+                      #],
+                      #self.drawPreferences}],
 #                      [{"id": id+3, "name":"Camera&c&","action":self.optionCam},
 #                       {"id": id+4, "name":"Light&c&","action":self.optionLight},
 #                       {"id": id+5, "name":"CloudsPoints&c&","action":self.optionPC},
 #                       {"id": id+6, "name":"BiCylinders&c&","action":self.optionCyl}],
                        "Extensions" : [
-                       self._addElemt(name="PyAutoDock",action=self.drawPyAutoDock)#self.drawPyAutoDock}
+                       self._addElemt(name="APBS Electrostatics",action=self.drawAPBS),
+                       self._addElemt(name="PyAutoDock",action=self.drawPyAutoDock),
                        ],
                        "Help" : 
                       [self._addElemt(name="About ePMV",action=self.drawAbout),#self.drawAbout},
                        self._addElemt(name="ePMV documentation",action=self.launchBrowser),#self.launchBrowser},
-                       self._addElemt(name="Check for Update",action=None),#self.check_update},
+                       self._addElemt(name="Check for Update",action=self.check_update),#self.check_update},
                        self._addElemt(name="Citation Informations",action=self.citationInformation),#self.citationInformation},
                       ],
                        }
@@ -680,6 +982,10 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         if self.epmv._modeller:            
             self.MENU_ID["Extensions"].append(self._addElemt(name="Modeller",
                                                 action=self.drawModellerGUI))#self.modellerGUI})
+        if self.epmv._modeller:            
+            self.MENU_ID["Extensions"].append(self._addElemt(name="Pymol",
+                                                action=self.drawPymolGUI))#self.modellerGUI})
+
         self.MENU_ID["Extensions"].append(self._addElemt(name="Add an Extension",
                                                 action=self.addExtensionGUI))#self.addExtensionGUI})
         self.LABEL_ID = []
@@ -690,22 +996,22 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.LABEL_ID.append(self._addElemt(label="Add selection set using string or",width=120))
         self.LABEL_ID.append(self._addElemt(label="Scheme:",width=50))
         self.LABEL_ID.append(self._addElemt(label="to load a Data file",width=50))
-        self.LABEL_ID.append(self._addElemt(label="to Current Selection and play below:",width=50))
+        self.LABEL_ID.append(self._addElemt(label="to Current Selection and play below:",width=120))
         self.LABEL_ID.append(self._addElemt(label="PMV-Python scripts/commands",width=50))
         self.LABEL_ID.append(self._addElemt(label="Molecular Representations",width=50))
-        self.LABEL_ID.append(self._addElemt(label="Apply",width=10))
+        self.LABEL_ID.append(self._addElemt(label="Apply",width=30))
         self.LABEL_ID.append(self._addElemt(label="a Selection Set",width=50))
         self.LABEL_ID.append(self._addElemt(label="atoms in the Selection Set",width=120))
         self.LABEL_ID.append(self._addElemt(label="or",width=10))
         self.LABEL_ID.append(self._addElemt(label="or",width=10))
         self.LABEL_ID.append(self._addElemt(label=":",width=10))
-        self.LABEL_ID.append(self._addElemt(label="Or choose a custom color",width=10))
+        self.LABEL_ID.append(self._addElemt(label="Or choose a custom color",width=100))
 
         self.LABEL={}
-        self.LABEL["uv1"]=self._addElemt(label="Create Texture Mapping for",width=10)
-        self.LABEL["uv2"]=self._addElemt(label="Using",width=10)
+        self.LABEL["uv1"]=self._addElemt(label="Create Texture Mapping for",width=100)
+        self.LABEL["uv2"]=self._addElemt(label="Using",width=100)
         
-        self.LABEL_VERSION = self._addElemt(label='welcome to ePMV '+self.__version__,width=50)
+        self.LABEL_VERSION = self._addElemt(label='welcome to ePMV '+self.__version__,width=100)
         
         self.pdbid = self.addVariable("str","1crn")
         self.EDIT_TEXT = self._addElemt(name="pdbId",action=None,width=100,
@@ -732,6 +1038,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.BTN={}
         self.BTN["uv"] = self._addElemt(name="Create",width=80,height=10,
                          action=self.createTexture,type="button")
+        self.BTN["bead"] = self._addElemt(name="Options",width=80,height=10,
+                         action=self.drawBeadOption,type="button")
         #values and variable definition
         self.datatype=['e.g.','Trajectories:','  .trj','  .xtc','VolumeGrids:']
         DataSupported = '\.mrc$|\.MRC$|\.cns$|\.xplo*r*$|\.ccp4*$|\.grd$|\.fld$|\.map$|\.omap$|\.brix$|\.dsn6$|\.dn6$|\.rawiv$|\.d*e*l*phi$|\.uhbd$|\.dx$|\.spi$'
@@ -740,8 +1048,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         
         self.presettype=['available presets:','  Lines','  Liccorice','  SpaceFilling',
                          '  Ball+Sticks','  RibbonProtein+StickLigand',
-                         '  RibbonProtein+CPKligand','  xray','  Custom',
-                         '  Save Custom As...']
+                         '  RibbonProtein+CPKligand','  Custom',
+                         '  Save Custom As...']#'  xray',
         self._preset = self.addVariable("int",1)
         
         self.keyword = ['keywords:','  backbone','  sidechain','  chain','  picked']
@@ -770,7 +1078,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self._col=self.addVariable("int",1)
         self._dat=self.addVariable("int",1)
         
-        self.boneslevel=["CA","Trace(N,CA,C,O)","Full Atoms","Domain","Chain","Mol"]
+        self.boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol"]
         self._bonesLevel=self.addVariable("int",1)
         
         self.uvselection=["unwrapped mesh UV","regular disposed triangle"]
@@ -844,7 +1152,6 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                           value="MSMSMOL",type="inputStr",variable=self.uvid)
 
 
-
         deflt='(Mol:Ch:Rletter:Atom), eg "1CRN:A:ALA:CA", \
                 or keywords: BACKBONE, SIDECHAINS, etc...'
         self.selid = self.addVariable("str",deflt)
@@ -869,6 +1176,9 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                                              variable=self.addVariable("int",0)),#self.displayBS},
                          "ss":self._addElemt(name="Ribbons",width=80,height=10,
                                              action=self.dsSS,type="checkbox",icon=None,
+                                             variable=self.addVariable("int",0)),#self.displaySS},
+                         "bead":self._addElemt(name="BeadedRibbons",width=80,height=10,
+                                             action=self.dsBR,type="checkbox",icon=None,
                                              variable=self.addVariable("int",0)),#self.displaySS},
                          "loft":self._addElemt(name="Loft",width=80,height=10,
                                                action=self.dsLoft,type="checkbox",icon=None,
@@ -909,6 +1219,10 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                                               action=self.updateMSMS,type="sliders",label="probe radius",
                                               variable=self.addVariable("float",1.5),
                                              mini=0.01,maxi=10.,step=0.01),#self.updateSurf},
+                        "surfdensity":self._addElemt(name="density",width=80,height=10,
+                                              action=self.updateMSMS,type="sliders",label="triangle density",
+                                              variable=self.addVariable("float",3.0),
+                                             mini=0.01,maxi=10.,step=0.01),#self.updateSurf},
                         "cmsI":self._addElemt(name="isovalue",width=80,height=10,
                                               action=self.updateCMS,type="sliders",label="isovalue",
                                               variable=self.addVariable("float",7.1),
@@ -942,7 +1256,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 
         txt="\n\nprint 'put your own commands here'\nprint 'with self = PMV instance, and epmv as ePMV'\n"
         self._script = self.addVariable("str",txt)
-        self.SCRIPT_TEXT = self._addElemt(name="epmvScript",action=None,width=100,
+        self.SCRIPT_TEXT = self._addElemt(name="epmvScript",action=None,width=200,
                           value=txt,type="inputStrArea",variable=self._script,height=200)
         
         bannerfile = self.epmv.mglroot+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+\
@@ -954,325 +1268,13 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.options = Parameter_epmvGUI()
         self.options.setup(self.epmv)
         self.ad=ParameterScoringGui()   
-        self.ad.setup(self.epmv)        
-        #TODO
-#        self.argui = ParameterARViewer()
-#        self.argui.setup(self.epmv)
-
-    def initWidgetId(self,id=None):
-        if id is not None :
-            id=id
-        else:
-            id = self.bid
-        self.id = id
-        self.iconsdir = self.epmv.mglroot+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+\
-                        os.sep+"images"+os.sep+"icons"+os.sep
-        self.menuorder = ["File","Edit","Extensions","Help"]
-        #submenu recentFile.
-        self.submenu= None
-        if self.mv.recentFiles.categories.has_key("Documents"):
-            self.submenu={}
-            for i,r in enumerate(self.mv.recentFiles.categories["Documents"]):
-                if r[1] == "readMolecule" :
-                    #id*(i+2)
-                    print self.id
-                    self.submenu[self.id]=self._addElemt(#id=i, 
-                                            name=r[0],
-                                            action=self.loadRecentFile)
-                    print self.submenu[self.id]
-#                    id = id +1
-        self._menu = self.MENU_ID = {"File":
-                      [self._addElemt(id=id, name="Recent Files",action=None,sub=self.submenu),
-                      self._addElemt(id=id+1, name="Open PDB",action=self.browsePDB),#self.buttonLoad},
-                      self._addElemt(id=id+2, name="Open Data",action=self.browseDATA)],#self.buttonLoadData
-                       "Edit" :
-                      [self._addElemt(id=id+3, name="Options",action=self.drawPreferences)],#self.drawPreferences}],
-#                      [{"id": id+3, "name":"Camera&c&","action":self.optionCam},
-#                       {"id": id+4, "name":"Light&c&","action":self.optionLight},
-#                       {"id": id+5, "name":"CloudsPoints&c&","action":self.optionPC},
-#                       {"id": id+6, "name":"BiCylinders&c&","action":self.optionCyl}],
-                       "Extensions" : [
-                       self._addElemt(id=id+4, name="PyAutoDock",action=self.drawPyAutoDock)#self.drawPyAutoDock}
-                       ],
-                       "Help" : 
-                      [self._addElemt(id=id+5, name="About ePMV",action=self.drawAbout),#self.drawAbout},
-                       self._addElemt(id=id+6, name="ePMV documentation",action=self.launchBrowser),#self.launchBrowser},
-                       self._addElemt(id=id+7, name="Check for Update",action=None),#self.check_update},
-                       self._addElemt(id=id+8, name="Citation Informations",action=self.citationInformation),#self.citationInformation},
-                      ],
-                       }
-        id = id + 9
-        if self.epmv._AF :
-            self.MENU_ID["Extensions"].append(self._addElemt(id=id, name="AutoFill",
-                                                action=None))#self.launchAFgui})
-             
-        if self.epmv._AR :
-            self.MENU_ID["Extensions"].append(self._addElemt(id=id, name="ARViewer",
-                                                action=None))#self.launchARgui})
-             
-        if self.epmv._modeller:            
-            self.MENU_ID["Extensions"].append(self._addElemt(id=id, name="Modeller",
-                                                action=self.drawModellerGUI))#self.modellerGUI})
-            
-        self.MENU_ID["Extensions"].append(self._addElemt(id=id, name="Add an Extension",
-                                                action=self.addExtensionGUI))#self.addExtensionGUI})
-        
-        self.LABEL_ID = []
-        self.LABEL_ID.append(self._addElemt(id=id,
-                    label="to a PDB file OR enter a 4 digit ID (e.g. 1crn):",
-                    width=120))
-        self.LABEL_ID.append(self._addElemt(id=id+1,label="",width=1))
-        self.LABEL_ID.append(self._addElemt(id=id+2,
-                    label="Current selection :",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+3,
-                    label="Add selection set using string or",width=120))
-        self.LABEL_ID.append(self._addElemt(id=id+4,label="Scheme:",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+5,label="to load a Data file",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+6,label="to Current Selection and play below:",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+7,label="PMV-Python scripts/commands",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+8,label="Molecular Representations",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+9,label="Apply",width=10))
-        self.LABEL_ID.append(self._addElemt(id=id+10,label="a Selection Set",width=50))
-        self.LABEL_ID.append(self._addElemt(id=id+11,label="atoms in the Selection Set",width=120))
-        self.LABEL_ID.append(self._addElemt(id=id+12,label="or",width=10))
-        self.LABEL_ID.append(self._addElemt(id=id+13, label="or",width=10))
-        self.LABEL_ID.append(self._addElemt(id=id+14,label=":",width=10))
-        id = id + len(self.LABEL_ID)
-        
-        self.LABEL_VERSION = self._addElemt(id=id,
-                            label='welcome to ePMV '+self.__version__,width=50)
-        
-        
-        self.pdbid = self.addVariable("str","1crn")
-        self.EDIT_TEXT = self._addElemt(id=id,name="pdbId",action=None,width=100,
-                          value="1crn",type="inputStr",variable=self.pdbid)
-        
-                
-        self.LOAD_BTN = self._addElemt(id=id,name="Browse",width=40,height=10,
-                         action=self.browsePDB,type="button")#self.buttonBrowse
-        
-        self.FETCH_BTN = self._addElemt(id=id,name="Fetch",width=40,height=10,
-                         action=self.fetchPDB,type="button")#self.buttonLoad}
-        
-        self.DATA_BTN = self._addElemt(id=id,name="Browse",width=40,height=10,
-                         action=self.browseDATA,type="button")#self.buttonLoadData}
-        
-        self.PMV_BTN = self._addElemt(id=id,name="Exec",width=80,height=10,
-                         action=self.execPmvComds,type="button")#self.execPmvComds}
-        
-        self.KEY_BTN= {"id":id,"name":"store key-frame",'width':80,"height":10,
-                         "action":None}
-        
-#        self.DEL_BTN= self._addElemt(id=id,name="Delete",width=80,height=10,
-#                         action=self.deleteMol,type="button")
-#        
-#        print "id del button", id-1
-
-        #values and variable definition
-        self.datatype=['e.g.','Trajectories:','  .trj','  .xtc','VolumeGrids:']
-        DataSupported = '\.mrc$|\.MRC$|\.cns$|\.xplo*r*$|\.ccp4*$|\.grd$|\.fld$|\.map$|\.omap$|\.brix$|\.dsn6$|\.dn6$|\.rawiv$|\.d*e*l*phi$|\.uhbd$|\.dx$|\.spi$'
-        DataSupported=DataSupported.replace("\\","  ").replace("$","").split("|")
-        self.datatype.extend(DataSupported)
-        
-        self.presettype=['available presets:','  Lines','  Liccorice','  SpaceFilling',
-                         '  Ball+Sticks','  RibbonProtein+StickLigand',
-                         '  RibbonProtein+CPKligand','  xray','  Custom',
-                         '  Save Custom As...']
-        self._preset = self.addVariable("int",1)
-        
-        self.keyword = ['keywords:','  backbone','  sidechain','  chain','  picked']
-        from MolKit.protein import ResidueSetSelector
-        kw=map(lambda x:"  "+x,ResidueSetSelector.residueList.keys())
-        self.keyword.extend(kw)
-        self._keyword=self.addVariable("int",1)
-        
-        self.scriptliste = ['Open:',
-                            'pymol_demo',
-                            'interactive_docking',
-                            'colorbyAPBS',
-                            'demo1',
-                            'user_script']
-        self.scriptsave = ['Save','Save as']
-        self._eOscript = self.addVariable("int",1)
-        self._eSscript = self.addVariable("int",1)
-        
-        self.editselection = ['Save set','Rename set','Delete set']
-        self._eSelection = self.addVariable("int",1)
-        
-        self.pdbtype=['PDB','TMPDB','OPM','CIF','PQS']
-        self._pdbtype=self.addVariable("int",1)
-        
-        self._currentmol=self.addVariable("int",1)
-        self._col=self.addVariable("int",1)
-        self._dat=self.addVariable("int",1)
-        
-        self.COMB_BOX = {"mol":self._addElemt(id=id,name="Current",value=[],
-                                    width=60,height=10,action=self.setCurMol,
-                                    variable=self._currentmol,
-                                    type="pullMenu"),#self.setCurMol
-                         "col":self._addElemt(id=id+1,name="Color",
-                                    value=self.colSchem,
-                                    width=80,height=10,action=self.color,
-                                    variable=self._col,
-                                    type="pullMenu",),#self.color},
-                         "dat":self._addElemt(id=id+2,name="Data",value=["None"],
-                                    width=60,height=10,action=self.updateTraj,
-                                    variable=self._dat,
-                                    type="pullMenu",),#self.updateTraj},
-                         "pdbtype":self._addElemt(id=id+3,name="Fecth",
-                                    value=self.pdbtype,
-                                    width=50,height=10,action=None,
-                                    variable=self._pdbtype,
-                                    type="pullMenu",),
-                         "datatype":self._addElemt(id=id+4,name="DataTypes",
-                                    value=self.datatype,
-                                    width=20,height=10,action=None,
-                                    variable=self.addVariable("int",1),
-                                    type="pullMenu",),
-                         "preset":self._addElemt(id=id+5,name="Preset",
-                                    value=self.presettype,
-                                    width=100,height=10,action=self.drawPreset,
-                                    variable=self._preset,
-                                    type="pullMenu",),#self.drawPreset},
-                         "keyword":self._addElemt(id=id+6,name="Keyword",
-                                    value=self.keyword,
-                                    width=80,height=10,action=self.setKeywordSel,
-                                    variable=self._keyword,
-                                    type="pullMenu",),#self.setKeywordSel},
-                         "scriptO":self._addElemt(id=id+7,name="ScriptO",
-                                    value=self.scriptliste,
-                                    width=80,height=10,action=self.set_ePMVScript,
-                                    variable=self._eOscript,
-                                    type="pullMenu",),#self.set_ePMVScript},
-                         "scriptS":self._addElemt(id=id+8,name="ScriptS",
-                                    value=self.scriptsave,
-                                    width=80,height=10,action=None,
-                                    variable=self._eSscript,
-                                    type="pullMenu",),#self.save_ePMVScript},
-                         "selection":self._addElemt(id=id+9,name="Selection",
-                                    value=self.editselection,
-                                    width=80,height=10,action=self.edit_Selection,
-                                    variable=self._eSelection,
-                                    type="pullMenu",),#elf.edit_Selection},
-                         }
-        id = id + len(self.COMB_BOX)
-
-        deflt='(Mol:Ch:Rletter:Atom), eg "1CRN:A:ALA:CA", \
-                or keywords: BACKBONE, SIDECHAINS, etc...'
-        self.selid = self.addVariable("str",deflt)
-        self.SELEDIT_TEXT = self._addElemt(id=id,name="selection",action=None,width=120,
-                          value=deflt,type="inputStr",variable=self.selid)
-        id = id+1
-
-        self.SEL_BTN ={"add":self._addElemt(id=id,name="Save set",width=45,height=10,
-                         action=None,type="button"),#self.add_Selection},
-                        "rename":self._addElemt(id=id+1,name="Rename",width=45,height=10,
-                         action=None,type="button"),#self.rename_Selection},
-                        "deleteS":self._addElemt(id=id+2,name="Delete Set",width=45,height=10,
-                         action=None,type="button"),#self.delete_Selection},
-                        "deleteA":self._addElemt(id=id+3,name="Delete",width=45,height=10,
-                         action=self.delete_Atom_Selection,type="button"),#self.delete_Atom_Selection}    
-                        }
-        id = id + len(self.SEL_BTN)
-        #do we need check button for other representation? ie lineMesh,cloudMesh etc..
-        self.CHECKBOXS ={"cpk":self._addElemt(id=id,name="Atoms",width=80,height=10,
-                                              action=self.dsCPK,type="checkbox",icon=None,
-                                              variable=self.addVariable("int",0)),#self.displayCPK},
-                         "bs":self._addElemt(id=id+1,name="Sticks",width=80,height=10,
-                                             action=self.dsBS,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.displayBS},
-                         "ss":self._addElemt(id=id+2,name="Ribbons",width=80,height=10,
-                                             action=self.dsSS,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.displaySS},
-                         "loft":self._addElemt(id=id+3,name="Loft",width=80,height=10,
-                                               action=self.dsLoft,type="checkbox",icon=None,
-                                               variable=self.addVariable("int",0)),#self.createLoft},
-                         "arm":self._addElemt(id=id+4,name="Armature",width=80,height=10,
-                                             action=self.dsBones,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.createArmature},
-                         "spline":self._addElemt(id=id+5,name="Spline",width=80,height=10,
-                                             action=self.dsSpline,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.createSpline},
-                         "surf":self._addElemt(id=id+6,name="MSMSurf",width=80,height=10,
-                                               action=self.dsMSMS,type="checkbox",icon=None,
-                                               variable=self.addVariable("int",0)),#self.displaySurf},
-                         "cms":self._addElemt(id=id+7,name="CoarseMolSurf",width=80,height=10,
-                                             action=self.dsCMS,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.displayCoarseMS},
-                         "meta":self._addElemt(id=id+8,name="Metaballs",width=80,height=10,
-                                             action=self.dsMeta,type="checkbox",icon=None,
-                                             variable=self.addVariable("int",0)),#self.displayMetaB}
-                         }
-        id = id + len(self.CHECKBOXS)
-       
-        #need a variable for each one
-        #no label for theses
-        #do we need slider button for other representation? ie metaball?/loft etc..
-        self.SLIDERS = {"cpk":self._addElemt(id=id,name="cpk_scale",width=80,height=10,
-                                             action=self.dsCPK,type="sliders",label="scale",
-                                             variable=self.addVariable("float",1.0),
-                                             mini=0.01,maxi=5.,step=0.01),#self.displayCPK},
-                        "bs_s":self._addElemt(id=id+1,name="bs_scale",width=80,height=10,
-                                             action=self.dsBS,type="sliders",label="scale",
-                                             variable=self.addVariable("float",1.0),
-                                             mini=0.0,maxi=10.,step=0.01),#self.displayBS},
-                        "bs_r":self._addElemt(id=id+2,name="bs_ratio",width=80,height=10,
-                                             action=self.dsBS,type="sliders",label="ratio",
-                                             variable=self.addVariable("float",1.5),
-                                             mini=0.0,maxi=10.,step=0.01),#self.displayBS},
-                        "surf":self._addElemt(id=id+3,name="probe",width=80,height=10,
-                                              action=self.updateMSMS,type="sliders",label="probe radius",
-                                              variable=self.addVariable("float",1.5),
-                                             mini=0.01,maxi=10.,step=0.01),#self.updateSurf},
-                        "cmsI":self._addElemt(id=id+4,name="isovalue",width=80,height=10,
-                                              action=self.updateCMS,type="sliders",label="isovalue",
-                                              variable=self.addVariable("float",7.1),
-                                             mini=0.01,maxi=10.,step=0.01),#self.updateCMS},
-                        "cmsR":self._addElemt(id=id+5,name="resolution",width=80,height=10,
-                                              action=self.updateCMS,type="sliders",label="resolution",
-                                              variable=self.addVariable("float",-0.3),
-                                             mini=-5.,maxi=0.,step=0.01),#self.updateCoarseMS},
-                        "cmsG":self._addElemt(id=id+6,name="grid size",width=80,height=10,
-                                              action=self.updateCMS,type="sliders",label="grid size",
-                                              variable=self.addVariable("int",32),
-                                             mini=1,maxi=100,step=1),#self.updateCoarseMS},                                             
-                        #"meta":{"id":id+8,"name":"MBalls",'width':15,"height":10,"action":self.displayMetaB}
-                        "datS":self._addElemt(id=id+7,name="state",width=100,height=10,
-                                              action=self.applyState,type="sliders",label="step/value",
-                                              variable=self.addVariable("float",0.),
-                                             mini=-10.,maxi=10.,step=0.01),#self.applyState},
-                        #"datV":{"id":id+7,"name":"value",'width':15,"height":10,"action":self.applyValue},                        
-                        }
-        id = id + len(self.SLIDERS)
-        #slider labels
-        self.SLIDERS_LABEL={}
-        for key in self.SLIDERS:
-            if self.SLIDERS[key]["label"]:
-                self.SLIDERS_LABEL[key]=self._addElemt(id=id,
-                                                label=self.SLIDERS[key]["label"],
-                                                width=50)
-                id = id +1
-        id = id + len(self.SLIDERS_LABEL)
-        self.COLFIELD = self._addElemt(id=id,name="chooseCol",action=self.custom_color,
-                                       variable = self.addVariable("col",(0.,0.,0.)),
-                                       type="color",width=30,height=15)#self.chooseCol}
-        
-
-        txt="\n\nprint 'put your own commands here'\nprint 'with self = PMV instance, and epmv as ePMV'\n"   
-        self._script = self.addVariable("str",txt)
-        self.SCRIPT_TEXT = self._addElemt(id=id,name="epmvScript",action=None,width=100,
-                          value=txt,type="inputStrArea",variable=self._script,height=200)
-        
-        bannerfile = self.epmv.mglroot+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+\
-                        os.sep+"images"+os.sep+"banner.jpg"
-        self.BANNER = self._addElemt(id=id,name="banner",value=bannerfile,type="image")
-        
-        self.pd = ParameterModeller()
-        self.pd.setup(self.epmv)
-        self.options = Parameter_epmvGUI()
-        self.options.setup(self.epmv)
-        self.ad=ParameterScoringGui()   
-        self.ad.setup(self.epmv)        
+        self.ad.setup(self.epmv)
+        self.beadUi= Parameter_beadRibbons()
+        self.beadUi.setup(self.epmv)
+        self.apbsgui = APBSgui()
+        self.apbsgui.setup(epmv=self.epmv)
+        self.pmvPalgui = Parameter_pmvPalette()
+        self.pmvPalgui.setup(epmv=self.epmv)
         #TODO
 #        self.argui = ParameterARViewer()
 #        self.argui.setup(self.epmv)
@@ -1343,6 +1345,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 
         elemFrame=[]
         elemFrame.append([self.CHECKBOXS["ss"],])
+        elemFrame.append([self.CHECKBOXS["bead"],self.BTN["bead"]])
         elemFrame.append([self.CHECKBOXS["arm"],self.COMB_BOX["bones"]])
         elemFrame.append([self.CHECKBOXS["loft"],])
         elemFrame.append([self.CHECKBOXS["spline"],])
@@ -1355,6 +1358,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         elemFrame=[]
         elemFrame.append([self.CHECKBOXS["surf"],])
         elemFrame.append([self.SLIDERS_LABEL["surf"],self.SLIDERS["surf"],])
+        elemFrame.append([self.SLIDERS_LABEL["surfdensity"],self.SLIDERS["surfdensity"],])
         elemFrame.append([self.CHECKBOXS["cms"],])
         elemFrame.append([self.SLIDERS_LABEL["cmsI"],self.SLIDERS["cmsI"],])
         elemFrame.append([self.SLIDERS_LABEL["cmsR"],self.SLIDERS["cmsR"],])
@@ -1380,12 +1384,12 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self._layout.append(frame)
 
         #lineUV -> will go in the options menu. as vertex colors to UV textur mapping (slow)
-#        elemFrame=[]
-#        elemFrame.append([self.LABEL["uv1"],self.INPUTSTR["uvg"]])#combo box OR Input
-#        elemFrame.append([self.LABEL["uv2"],self.COMB_BOX["uv"]])
-#        elemFrame.append([self.BTN["uv"],self.INPUTSTR["uv"] ])
-#        frame = self._addLayout(id=205,name="UV Texture mapping",elems=elemFrame)
-#        self._layout.append(frame)
+        elemFrame=[]
+        elemFrame.append([self.LABEL["uv1"],self.INPUTSTR["uvg"]])#combo box OR Input
+        elemFrame.append([self.LABEL["uv2"],self.COMB_BOX["uv"]])
+        elemFrame.append([self.BTN["uv"],self.INPUTSTR["uv"] ])
+        frame = self._addLayout(id=205,name="UV Texture mapping",elems=elemFrame)
+        self._layout.append(frame)
 
 #        self._layout.append([self.LABEL_ID[4],self.COMB_BOX["col"],self.COLFIELD])
         #line10#data player
@@ -1478,7 +1482,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                     lgeomName.append(sname)   
                 elif key == "surf":
                     sname='MSMS-MOL'+str(mname)
-                    if sel != mname :sname='MSMS-MOL'+str(selname) 
+#                    if sel != mname :
+#                        sname='MSMS-MOL'+str(sel) 
                     lgeomName.append(sname)
                 elif key == "col":
                     continue
@@ -1509,7 +1514,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         molname=os.path.splitext(os.path.basename(filename))[0]
 #        print molname
         #test the name lenght
-        if len(molname) > 7 :
+        if len(molname) > self.epmv.MAX_LENGTH_NAME :
             self.drawError("Sorry, but the name of the given file is to long,\nand not suppported by Blender.\n Please rename it or load another file")
             return 0
 #        if VERBOSE :print molname, self.Mols.name, (molname in self.Mols.name)
@@ -1542,10 +1547,10 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 
         self.mv.Mols[-1].name=molname
 
-        if len(molname) > 7 : 
-            self.mv.Mols[-1].name=molname[0:6]
-            molname = self.mv.Mols[-1].name
-        self.epmv.testNumberOfAtoms(self.mv.Mols[-1])
+#        if len(molname) > 7 : 
+#            self.mv.Mols[-1].name=molname[0:6]
+#            molname = self.mv.Mols[-1].name
+#        self.epmv.testNumberOfAtoms(self.mv.Mols[-1])
         self.getData(self.mv.Mols[-1].name)
         self.updateViewer()
 
@@ -1582,6 +1587,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             self.mv.fetch.db = type
             print self.epmv.forceFetch
             mol = self.mv.fetch(molname,f=self.epmv.forceFetch)           
+            print "fetch ",mol
             if mol is None :
                 return True
             self.epmv.testNumberOfAtoms(mol)
@@ -1661,6 +1667,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             name = self.mv.grids3D.keys()[-1] #the last read data
             val = self.getLong(self.COMB_BOX["mol"])
             vname = self.COMB_BOX["mol"]["value"][val]
+            print val,vname,self.COMB_BOX["mol"]["value"]
             mname,mol=self.epmv.getMolName(vname) 
             self.mv.cmol = mol
 #            sys.stderr.write('before Select and isoContour')            
@@ -1718,14 +1725,17 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 
     def getDsInfo(self,key=None):
         val = self.getLong(self.COMB_BOX["mol"])
-        name = self.COMB_BOX["mol"]["value"][val]
+        try :
+            name = self.COMB_BOX["mol"]["value"][val]
+        except :
+            return None,None,None,None
         if name is None :
             return None,None,None,None
         if name not in self.mv.selections.keys(): 
             mol = self.getSelectionMol(name)
             mname = mol.name
             sel = self.mv.selections[mname][name]
-            selection = self.mv.select(str(),
+            selection = self.mv.select(str(sel),
                                        negate=False, only=True, xor=False, 
                                        log=0, intersect=False)
             if key is not None :
@@ -1901,10 +1911,12 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 
     def restoreMolMenu(self):
         #call this after flushing the combo box
+        print self.mv.Mols
         for mol in self.mv.Mols:
             self.addItemToPMenu(self.COMB_BOX["mol"],str(mol.name))
-            for selname in self.mv.selections[mol.name].keys():
-                self.addItemToPMenu(self.COMB_BOX["mol"],str(selname))
+            if self.mv.selections.has_key(mol.name) :
+                for selname in self.mv.selections[mol.name].keys():
+                    self.addItemToPMenu(self.COMB_BOX["mol"],str(selname))
                         
     def setKeywordSel(self):
         key=self.keyword[self.GetLong(self._keywordtype)]
@@ -1917,8 +1929,12 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         if sel is mol.name :
 #            print sel,mname, mol , "del"
             res = self.drawQuestion("Delete?","Are You sure you want to delete "+mol.name)
+            print res
             if res : 
                 self.epmv._deleteMolecule(mol)
+                #need to update the current_sel menu
+                self.resetPMenu(self.COMB_BOX["mol"])   
+                self.restoreMolMenu()
         else :
             res = self.drawQuestion("Delete?","Are You sure you want to delete the atoms of the current selection "+sel)
             if res : 
@@ -1962,7 +1978,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         bRad = 0.3
         cradius = float(bRad/ratio)*scale
         if not mol.doCPK:
-            mol.doCPK = drawQuestion("Are You sure you want \nto display the BallSticks ("+str(len(mol.allAtoms))+" atoms)","Balls and Sticks")
+            print mol.doCPK
+            mol.doCPK = self.drawQuestion("Are You sure you want \nto display the BallSticks for "+str(len(mol.allAtoms))+" atoms","Balls and Sticks")
         if mol.doCPK:
             self.mv.displaySticksAndBalls(sel, bRad=0.3*scale, 
                                    cradius =cradius, bScale=0., 
@@ -1974,11 +1991,30 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
     def dsSS(self,*args):        
         mname,mol,sel,selection,display = self.getDsInfo("ss")
         if mol is None:
+            return
+        #this command rewrite the exElemt
+        #self.mv.extrudeSecondaryStructure(sel, topCommand=0, log=0, display=0)
+        self.mv.displayExtrudedSS(sel, negate=(not bool(display)), only=False)
+        return True
+
+    def drawBeadOption(self,*args):  
+        self.drawSubDialog(self.beadUi,2555558)
+
+    def dsBR(self,*args):        
+        mname,mol,sel,selection,display = self.getDsInfo("bead")
+        if mol is None:
             return        
-        self.mv.displayExtrudedSS(sel, negate=(not bool(display)), molModes={mname:'From Pross'},
-                                               only=False, log=1)
+        if display :
+            #open the display option menu
+            self.mv.beadedRibbons(sel,createEvents=False)
+            self.drawBeadOption(None)
+        #else :
+        #    #selection?
+        for ch in mol.chains :
+            obj = self.epmv.helper.getObject(mol.name+ch.name+"_beadedRibbon")
+            self.epmv.helper.toggleDisplay(obj,display)
         return True  
-            
+
     def dsCMS(self,*args):
         mname,mol,sel,selection,display = self.getDsInfo("cms")
         if mol is None:
@@ -2033,12 +2069,17 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             return
         name='MSMS-MOL'+mname
         pradius=self.getReal(self.SLIDERS["surf"])
+        density=self.getReal(self.SLIDERS["surfdensity"])
         if name in mol.geomContainer.geoms :
-            self.mv.displayMSMS(sel, negate=(not bool(display)), 
+            try:
+                self.mv.displayMSMS(sel, negate=(not bool(display)), 
                             only=False, surfName=name, nbVert=1)
+            except :
+                self.drawError("MSMS ERROR!")
         else :
             self.mv.computeMSMS(sel, display=(bool(display)), 
-                             surfName=name,perMol=1,pRadius=pradius)
+                             surfName=name,perMol=0,
+                             pRadius=pradius,density = density)
         #funcColor[ColorPreset2.val-1](molname, [name], log=1)
         return True
         
@@ -2048,45 +2089,72 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             return        
         name='MSMS-MOL'+mname
         pradius=self.getReal(self.SLIDERS["surf"])
+        density=self.getReal(self.SLIDERS["surfdensity"])
         if display and name in mol.geomContainer.geoms: 
             self.mv.computeMSMS(sel,#hdensity=msmsopt['hdensity'].val, 
                                      hdset=None, 
-#                                     density=msmsopt['density'].val, 
+                                     density=density, 
                                      pRadius=pradius, 
-                                     perMol=1, display=True, 
+                                     perMol=0, display=True, 
                                      surfName=name)
         return True
 
     def dsLoft(self,*args):
         mname,mol,sel,selection,display = self.getDsInfo("loft")
+        i=self.getLong(self.COMB_BOX["bones"])
         if mol is None : 
             return        
-        name="loft"+mol.name
-        loft = self.epmv.helper.getObject(name)
-        if loft is None :
-            if sel == mname :
-                selection = mol.allAtoms.get("CA")
-            selection.sort()
-            loft = self.epmv._makeRibbon("loft"+mol.name,selection.coords,
-                                     parent=mol.geomContainer.masterGeom.obj)
-        self.epmv.helper.toggleDisplay(loft,display)
+        for c in mol.chains :
+            name="loft"+mol.name+"_"+c.name
+            loft = self.epmv.helper.getObject(name)
+            if c.ribbonType()=='NA':
+                laders = self.epmv.helper.getObject("loft"+mol.name+c.name+"_lader")
+            if loft is None :
+                #self.getAtomsSelection(self.boneslevel[i],sel,selection,mol,chain=c)
+                if c.ribbonType()=='NA':
+                    lsel = c.residues.atoms.get("O5'").coords
+                else :
+                    lsel = c.residues.atoms.get("CA").coords
+                parent = mol.geomContainer.masterGeom.chains_obj[c.name]
+                #parent = mol.geomContainer.masterGeom.obj
+                loft = self.epmv._makeRibbon(name,lsel,parent=parent)               
+                #waht about the lader
+                if c.ribbonType()=='NA':
+                    #make the ladder
+                    laders=self.epmv.NAlader("loft",mol,c,parent = parent)[0]               
+            self.epmv.helper.toggleDisplay(loft,display)
+            if c.ribbonType()=='NA':
+                #this doesnt work in blender
+                if laders is not None :
+                    self.epmv.helper.toggleDisplay(laders,display)
         return True
     
     def dsSpline(self,*args):
         mname,mol,sel,selection,display = self.getDsInfo("spline")
+        i=self.getLong(self.COMB_BOX["bones"])
         if mol is None : 
             return        
         for c in mol.chains :
             name=mol.name+"_"+c.name+"spline"#'spline'+mol.name #
             obSpline=self.epmv.helper.getObject(name)
             if obSpline is None:
-                if sel == mname :
-                    selection = c.residues.atoms.get("CA")
-                selection.sort()
+                #lsel = self.getAtomsSelection(self.boneslevel[i],sel,selection,mol,chain=c)
+                if c.ribbonType()=='NA':
+                    lsel = c.residues.atoms.get("O5'")
+                else :
+                    lsel = c.residues.atoms.get("CA")                
                 parent = mol.geomContainer.masterGeom.chains_obj[c.name]
-                obSpline,spline=self.epmv.helper.spline(name,selection.coords,
+                if isinstance(lsel,AtomSet) :
+                    obSpline,spline=self.epmv.helper.spline(name,lsel.coords,
                                                 scene=self.epmv.helper.getCurrentScene(),
                                                 parent=parent)
+                else :
+                    obSpline,spline=self.epmv.helper.spline(name,lsel,
+                                                scene=self.epmv.helper.getCurrentScene(),
+                                                parent=parent)
+#                if c.ribbonType()=='NA':
+#                    #make the ladder
+#                    self.epmv.NAlader(mol,c)
             self.epmv.helper.toggleDisplay(obSpline,display)
         return True
         
@@ -2107,9 +2175,54 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         else :
             self.epmv.helper.toggleDisplay(metaballs,display)
         return True
-        
+
+    def getAtomsSelection(self,level,sel,selection,mol,chain = None):
+        atlevel = {"Trace":["CA","O5'"],
+                   "Backbone":["N,CA,C,N","P,O5',C5',C4',C3',O3'"],
+                   "Full Atoms":["all","all"],
+                   "Domain":["CA","P"], #how to define the domain
+                   "Chain":["ccenter","ccenter"],
+                   "Mol":["mcenter","mcenter"],
+                   }
+        lsel=AtomSet()        
+        lchain = mol.chains
+        if chain is not None :
+            lchain = [chain]
+        i=0
+        #check selection,check if dna
+        if level == 'Mol':
+            lsel = [mol.getCenter(),]
+        elif level == 'Chain' :
+            lsel=[]
+            for ch in lchain:
+                #get the center of the chain
+                lsel.append(util.getCenter(ch.residues.atoms.coords))
+        elif level == 'Domain' :
+            #how to get the domain and its center...
+            lsel=[]
+            for ch in lchain:
+                #get the center of the chain
+                lsel.append(util.getCenter(ch.residues.atoms.coords))           
+        else :
+            if sel == mol.name :
+                for ch in lchain:
+                    if ch.ribbonType()=='NA':
+                        i=1
+                    selection = ch.residues.atoms.get(atlevel[level][i])
+                    selection.sort()
+                    lsel.extend(selection)
+            else :
+                ch=selection.findParentsOfType(Chain)[0]
+                if ch.ribbonType()=='NA':
+                    i=1
+                selection = selection.get(atlevel[level][i])
+                selection.sort()
+                lsel.extend(selection)        
+        print lsel
+        return lsel
+
     def dsBones(self,*args):
-        level = {0:"CA",1:"N,CA,C,N",2:"all"}
+        #boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol"]
         mname,mol,sel,selection,display = self.getDsInfo("arm")
         if mol is None : 
             return        
@@ -2119,19 +2232,20 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         print self.boneslevel[i]
         atlevel="CA"
         if armObj is None :
-            if i in [0,1,2]:#atomic level
-                atlevel = level[i]
-            if sel == mname :
-                selection = mol.allAtoms.get(atlevel)
-            else :
-                selection = selection.get(atlevel)
-            selection.sort()        
-            object,bones=self.epmv._armature(name,selection,
+            #level
+            lsel = self.getAtomsSelection(self.boneslevel[i],sel,selection,mol)
+            if isinstance(lsel,AtomSet) :
+                object,bones=self.epmv._armature(name,lsel,
                                        scn=self.epmv.helper.getCurrentScene(),
                                        root=mol.geomContainer.masterGeom.obj)
 #                                       mode=self.boneslevel[i])
+            else :
+                object,bones=self.epmv._armature(name,lsel,coords=lsel,
+                                       scn=self.epmv.helper.getCurrentScene(),
+                                       root=mol.geomContainer.masterGeom.obj)                
             mol.geomContainer.geoms["armature"]=[object,bones]
         else :
+            #how to update > delete and recreate ?
             self.epmv.helper.toggleDisplay(armObj,display)
         return True
 
@@ -2202,15 +2316,68 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             self.setReal(self.SLIDERS["bs_r"],1.0)
             self.setBool(self.CHECKBOXS["bs"] ,True)
             self.dsBS()
-        elif preset.strip() == 'RibbonProtein+StickLigand':
-            #need 1 or 2 molecules...like whats prot and whats ligand
-            #lets ask for it ? with some proposition
-            pass
         elif preset.strip() == 'xray':
             #??
             pass
         elif preset.strip() == 'Lines':
             self.mv.displayLines(selection)
+        elif preset.strip() == 'Ball+Sticks':
+            self.setReal(self.SLIDERS["bs_r"],1.5)
+            self.setBool(self.CHECKBOXS["bs"],True)
+            self.dsBS()
+        elif preset.strip() == 'SpaceFilling':
+            self.setReal(self.SLIDERS["cpk"],1.)
+            self.setBool(self.CHECKBOXS["cpk"],True)
+            self.dsCPK()
+        elif preset.strip() == 'RibbonProtein+StickLigand':
+            #need to check if ligand exist
+            ligand = self.mv.select(mol.name+"::ligand:",
+                                        negate=False, only=True, xor=False, 
+                                        log=0, intersect=False)
+            if not len(ligand) :
+                return
+            #1 select protein
+            p = self.mv.select(mol.name+"::aminoacids:",
+                                        negate=False, only=True, xor=False, 
+                                        log=0, intersect=False)            
+            #2 dsSS for protein
+            self.mv.displayExtrudedSS(p, negate=False, molModes={mname:'From Pross'},
+                                               only=False, log=1)
+            self.mv.colorBySecondaryStructure(p,["secondarystructure"])           
+            self.setBool(self.CHECKBOXS["ss"] ,True)
+            #3ds ligand Liccroice
+            ratio = self.getReal(self.SLIDERS["bs_r"])
+            scale = self.getReal(self.SLIDERS["bs_s"])
+            bRad = 0.3
+            cradius = float(bRad/ratio)*scale            
+            self.mv.displaySticksAndBalls(ligand, bRad=0.3*scale, 
+                                   cradius =cradius, bScale=0., 
+                                   negate=False,
+                                   only=False, bquality=0, 
+                                   cquality=0)
+            self.setBool(self.CHECKBOXS["bs"] ,True)
+        elif preset.strip() == 'RibbonProtein+CPKligand':
+            #need to check if ligand exist
+            ligand = self.mv.select(mol.name+"::ligand:",
+                                        negate=False, only=True, xor=False, 
+                                        log=0, intersect=False)
+            if not len(ligand) :
+                return            
+            #1 select protein
+            p = self.mv.select(mol.name+"::aminoacids:",
+                                        negate=False, only=True, xor=False, 
+                                        log=0, intersect=False)            
+            #2 dsSS for protein
+            self.mv.displayExtrudedSS(p, negate=False, molModes={mname:'From Pross'},
+                                               only=False, log=1)
+            self.mv.colorBySecondaryStructure(p,["secondarystructure"])   
+            self.setBool(self.CHECKBOXS["ss"] ,True)        
+            #3ds ligand CPK
+            scale = self.getReal(self.SLIDERS["cpk"])  
+            self.mv.displayCPK(ligand,log=0,negate=False,
+                        scaleFactor=scale, redraw =0)#redraw? 
+            self.setBool(self.CHECKBOXS["cpk"] ,True)
+        #what are Custom and Save as?
 
     def createTexture(self,*args):
         mname,mol,sel,selection = self.getDsInfo()
@@ -2287,7 +2454,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                 f.close()
             except:
                 script = "file :\n"+filename + " didnt exist !\n"
-            self.SetStringArea(self.SCRIPT_TEXT,script)
+            self.setStringArea(self.SCRIPT_TEXT,script)
  
     def execPmvComds(self,*args):
         #first select the text
@@ -2316,8 +2483,31 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
     def citationInformation(self,*args):
         import webbrowser
         webbrowser.open(self.__url__[2])
- 
+
+    def check_update(self,*args):
+        #get current version
+        import Support
+        self.epmv.inst.current_version = self.__version__
+        self.epmv.inst.PMVv = Support.version.__version__
+        self.epmv.inst.pyubicv = pyubic.__version__
+        doit=self.epmv.inst.checkForUpdate()
+        if True in doit :
+            #need some display?
+            msg = "An update is available.\nNotes:\n"
+            msg+= self.epmv.inst.update_notes
+            msg+= "Do you want to update?\n"
+            res = self.drawQuestion(question=msg)
+            if res :
+                res = self.drawQuestion(question="Do you want to backup the current version?")
+                self.epmv.inst.update(pmv=doit[0],epmv=doit[1],pyubic=doit[2],backup=res)
+                self.drawMessage(title='update ePMV',message="You are now up to date! Please restart.")
+        else :
+            self.drawMessage(title='update ePMV',message="You are up to date! no update need.")
+        
     def addExtensionGUI(self,*args):
+        #should do a mini dialog asking to browse and propose the current 
+        #supported extension excepting already set up extension
+        #should have a subdialog instead
         question="Enter the extension name follow by the directory,\nie 'modeller:/Library/modeller/modlib'"
         self.drawInputQuestion(question=question,callback=self.epmv.inst.addExtension)
 
@@ -2325,10 +2515,30 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         #drawSubDialog
         self.drawSubDialog(self.ad,2555555)#in c4d asynchr but blender syncrho
 
-
     def drawModellerGUI(self,*args):
         #drawSubDialog
         self.drawSubDialog(self.pd,2555556,callback = self.pd.doIt) #in c4d asynchr but blender syncrho
+
+    def drawPalette(self,*args):
+        #drawSubDialog
+        self.drawSubDialog(self.pmvPalgui,25555560) #in c4d asynchr but blender syncrho
+
+    def drawPymolGUI(self,*args):
+        #drawSubDialog
+        print "drawSubPyMol"
+        #if self.epmv._pymol :
+        if self.pymolgui is None :
+            print "create pymol gui as a subDialog"
+            from ePMV.PyMol.pymolAdaptor import pymolGui
+            #exec('self.pymolgui = pymolGui()\n',{"pymolGui":pymolGui,"self":self})
+            self.pymolgui = pymolGui()
+        if self.pym is None:
+            from ePMV.PyMol.pymolAdaptor import pymolAdaptor
+            print "createpymolAdaptor"
+            self.pym = pymolAdaptor(debug =0)
+            self.pymolgui.setup(sub=True,epmv=self.epmv,pym=self.pym)        
+        self.drawSubDialog(self.pymolgui,25555570)
+        
 
     def modellerOptimize(self,*args):
         import modeller
@@ -2384,3 +2594,5 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         mol.pmvaction.redraw = False
         return True
 
+    def drawAPBS(self,*args):
+        self.drawSubDialog(self.apbsgui,255555710)

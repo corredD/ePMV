@@ -34,9 +34,10 @@ class c4dAdaptor(epmvAdaptor):
     """
 
     def __init__(self,gui=False,mv=None,debug=0):
-        epmvAdaptor.__init__(self,mv,host='c4d',debug=debug)
-        self.soft = 'c4d'
         self.helper = helperC4D.c4dHelper()
+        epmvAdaptor.__init__(self,mv,host='c4d',debug=debug)
+        self.MAX_LENGTH_NAME = 20
+        self.soft = 'c4d'
         #scene and object helper function
 #        #scene and object helper function
         self._getCurrentScene = self.helper.getCurrentScene
@@ -58,7 +59,7 @@ class c4dAdaptor(epmvAdaptor):
 ##        self._instancesAtomsSphere = self.helper.instancesAtomsSphere
 #        self._Tube = self.helper.Tube
         self._createsNmesh = self.helper.createsNmesh
-#        self._PointCloudObject = self.helper.PointCloudObject
+        self._PointCloudObject = self.helper.PointCloudObject
 #        #modify/update geom helper function
 ##        self._updateSphereMesh = self.helper.updateSphereMesh
         self._updateSphereObj = self.helper.updateSphereObj
@@ -96,10 +97,10 @@ class c4dAdaptor(epmvAdaptor):
     def _makeRibbon(self,name,coords,shape=None,spline=None,parent=None):
         sc=self._getCurrentScene()
         if shape is None :
-            circle=self.helper.Circle(name+"circle",rad=0.3)
+            circle=self.helper.Circle(name+"circle",rad=0.5)
             self._addObjectToScene(sc,circle)
         if spline is None :
-            spline = self.helper.spline(name+"spline",coords,scene=sc)
+            spline = self.helper.spline(name+"_spline",coords,scene=sc)
 #            self._addObjectToScene(sc,spline[0])
         nurb=self.helper.sweepnurbs(name)
         self._addObjectToScene(sc,nurb,parent=parent)
@@ -149,15 +150,27 @@ class c4dAdaptor(epmvAdaptor):
         return iMe
 
     def _changeColor(self,geom,colors,perVertex=True,proxyObject=True,pb=False):
-        if geom.name[:4] in ['Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
-            proxyObject=False
-        self.helper.changeColor(geom.mesh,colors,perVertex=perVertex,
+        if hasattr(geom,'mesh'):
+            if geom.name[:4] in ['Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
+                proxyObject=False       
+            objToColor = geom.mesh
+        else :
+            if type(geom) is str :
+                objToColor = self.helper.getObject(geom)
+            else :
+                objToColor = geom
+        self.helper.changeColor(objToColor,colors,perVertex=perVertex,
                                     proxyObject=proxyObject,pb=pb)
 
-    def _armature(self,name,atomset,root=None,scn=None):
-        names = [x.full_name().replace(":","_") for x in atomset]
+    def _armature(self,name,atomset,coords=None,root=None,scn=None):
         scn=self.helper.getCurrentScene()
-        object,bones=self.helper.armature(name,atomset.coords,listeName=names,
+        names = None
+        if coords is not None :
+            c = coords    
+        else :
+            c = atomset.coords
+            names = [x.full_name().replace(":","_") for x in atomset]
+        object,bones=self.helper.armature(name,c,listeName=names,
                                           root=root,scn=scn)
         return object,bones
 
@@ -191,6 +204,9 @@ class c4dAdaptor(epmvAdaptor):
         hiera = 'default'    
         parent=self.findatmParentHierarchie(x[0],n,hiera) 
         mol = x[0].getParentOfType(Protein)        
+        if pb :
+            self.helper.resetProgressBar()
+            self.helper.progressBar(progress=0,label = "creating "+name)
         for c in mol.chains:
             spher=[]
             oneparent = True 
@@ -204,7 +220,7 @@ class c4dAdaptor(epmvAdaptor):
 #                scaleFactor=float(R)+float(radius)*float(scale)
                 atN=at.name
                 if atN[0] not in AtomElements.keys() : atN="A"
-                fullname = at.full_name()
+                fullname = at.full_name().replace("'","b")+"n"+str(at.number)
                 #print fullname
                 atC=at.coords#at._coords[0]
                 spher.append( c4d.BaseObject(c4d.Oinstance) )
@@ -232,7 +248,7 @@ class c4dAdaptor(epmvAdaptor):
                 self.helper.toggleDisplay(spher[j],False)
                 k=k+1
                 if pb :
-                    self.helper.progressBar(j/len(coords)," cpk ")
+                    self.helper.progressBar(progress=j/len(coords))
                     #dialog.bc[c4d.gui.BFM_STATUSBAR_PROGRESS] = j/len(coords)
                     #dialog.bc[c4d.gui.BFM_STATUSBAR_PROGRESSFULLSIZE] = True
                     #c4d.StatusSetBar(j/len(coords))
@@ -348,4 +364,31 @@ class c4dAdaptor(epmvAdaptor):
 #                if o != None :
 #                    toggleDisplay(o,display)
 #                    if needRedraw : updateObjectPos(o,atms.coords) 
+
+    def _editLines(self,molecules,atomSets):
+        scn = self.helper.getCurrentScene()
+        for mol, atms, in map(None, molecules, atomSets):
+            #check if line exist
+            for ch in mol.chains:
+                parent = self.helper.getObject(ch.full_name())
+                lines = self.helper.getObject(ch.full_name()+'_line')
+                if lines == None :
+                    arr = c4d.BaseObject(c4d.Oatomarray)
+                    arr.SetName(ch.full_name()+'_lineds')
+                    arr[1000] = 0.1 #radius cylinder
+                    arr[1001] = 0.1 #radius sphere
+                    arr[1002] = 3 #subdivision
+                    self.helper.addObjectToScene(scn,arr,parent=parent)                
+                    bonds, atnobnd = ch.residues.atoms.bonds
+                    indices = map(lambda x: (x.atom1._bndIndex_,
+                                             x.atom2._bndIndex_), bonds)
+    
+                    lines = self.helper.createsNmesh(ch.full_name()+'_line',
+                                                     ch.residues.atoms.coords,
+                                                     None,indices)
+                    self.helper.addObjectToScene(scn,lines[0],parent=arr)
+                    mol.geomContainer.geoms[ch.full_name()+'_line'] = lines
+                    #display using AtomArray
+                else : #need to update
+                    self.helper._updateLines(lines, chains=ch)
     

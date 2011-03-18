@@ -1,2 +1,3 @@
 #put your extension name and directory here
 modeller:/Library/modeller-9v8/modlib
+pymol:/Library/Python/2.5/site-packages/

@@ -45,77 +45,23 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 #=======
 import os,sys
 import c4d
-MGL_ROOT="/Library/MGLTools/1.5.6.up"
-
 
 prefpath=c4d.storage.GeGetC4DPath(1)
 os.chdir(prefpath)
 os.chdir(".."+os.sep)
 softdir = os.path.abspath(os.curdir)
-mgldirfile=softdir+os.sep+"plugins"+os.sep+"epmv"+os.sep+"mgltoolsdir"
-if len(MGL_ROOT) == 0 :  
-    if os.path.isfile(mgldirfile) :
+MGL_ROOT=""
+mgldirfile=softdir+os.sep+"mgltoolsdir"
+if os.path.isfile(mgldirfile) :
         f=open(mgldirfile,'r')
         MGL_ROOT=f.readline()
         f.close()
-    else :
-        if len(MGL_ROOT) == 0 :
-            MGL_ROOT = c4d.storage.LoadDialog(title="what is the path to MGLToolsPckgs?",flags=2)
-        f=open(mgldirfile,'w')
-        f.write(MGL_ROOT)
-        f.close()
-print MGL_ROOT
-#is MGLTools Pacthed ie windows
-if sys.platform == 'win32':
-    #need to patch MGLTools first
-    #first patch MGLTools
-    #check if we need to patch
-    mgltoolsDir = MGL_ROOT+os.sep+"MGLToolsPckgs"
-    patch=os.path.isfile(mgltoolsDir+os.sep+"patched")
-    if not patch :
-        import urllib
-        import tarfile 
-        c4d.gui.MessageDialog("Patching MGLToolsPckgs with python2.6 system dependant modules")
-        print mgltoolsDir+os.sep
-        patchpath = mgltoolsDir+os.sep
-        URI="http://mgldev.scripps.edu/projects/ePMV/patchs/depdtPckgs.tar"
-        tmpFileName = mgltoolsDir+os.sep+"depdtPckgs.tar"
-        if not os.path.isfile(tmpFileName):
-            urllib.urlretrieve(URI, tmpFileName)
-            #geturl(URI, tmpFileName)
-        TF=tarfile.TarFile(tmpFileName)
-        TF.extractall(patchpath)
-        #create the pacthed file
-        f=open(mgltoolsDir+os.sep+"patched","w")
-        f.write("MGL patched!")
-        f.close()
-        c4d.gui.MessageDialog("MGLTools pacthed, click OK to continue")
-
+else :
+    c4d.gui.MessageDialog("ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile)
+    exit()
 #add to syspath
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
-from Pmv.hostappInterface.install_plugin import Installer
 
-epmvinstall = Installer(gui=False)
-
-#is C4dpatched
-if sys.platform == "darwin" :
-	patchpath = c4d.storage.GeGetC4DPath(4)+os.sep+"python"+os.sep+"packages"+os.sep+"osx"+os.sep
-elif sys.platform == "win32":
-	patchpath = c4d.storage.GeGetC4DPath(2)+os.sep+"modules"+os.sep+"python"+os.sep+"res"+os.sep
-epmvinstall.softdir[2] = softdir
-print epmvinstall.softdir[2]
-patched=os.path.isfile(patchpath+"patched")
-if not patched :
-    c4d.gui.MessageDialog("Cinema4D python library is going to be pacthed\n")
-    epmvinstall.patchC4DR12(patchpath)
-    c4d.gui.MessageDialog("Cinema4D python library have just beed patched you need to restart!\n")
-    #c4d.CallCommand(12104)#quit
-
-#check if we need to patch MGLTools / C4D
-#TODO:
-#make the pyrosetta extension
-#loft did not work
-#copy  libjpeg.62.dylib in /usr/lib ?
 import c4d
 from c4d import plugins
 from c4d import utils
@@ -127,10 +73,6 @@ from c4d import gui
 import sys
 import os
 from time import time
-#if changePath :
-#    sys.path.insert(1,sys.path[0]+"/lib-tk")
-#    sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
-#    sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
 
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
 if sys.platform == "win32":
@@ -139,14 +81,6 @@ else :
     sys.path.insert(1,sys.path[0]+"/lib-tk")
     sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
     sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
-
-#sys.path.append('/Library/MGLTools/REL/python2.6/lib/python2.6/site-packages')
-#sys.path.append('/Library/Python/2.6/site-packages/')
-#sys.path.append('/Library/Python/2.6/site-packages/numpy-1.3.0-py2.6-macosx-10.6-universal.egg/')
-#sys.path.append('/Library/Python/2.6/site-packages/PIL/')
-
-#sys.path.insert(0,"/System/Library/Frameworks/Python.framework/Versions/2.6/lib/python2.6/")
-#sys.path.insert(0,"/System/Library/Frameworks/Python.framework/Versions/2.6/lib/python2.6/lib-tk/")
 
 #only need to do it once the sys path update....
     #pmv 1.6.0 seems to works perfect, no need to patch

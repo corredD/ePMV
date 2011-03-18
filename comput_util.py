@@ -395,7 +395,10 @@ def changeR(txt):
         return rname[1]+rnum
     else :
         rname=rname.replace(" ","")
-        r1n=ResidueSetSelector.r_keyD[rname]
+        if ResidueSetSelector.r_keyD.has_key(rname):
+            r1n=ResidueSetSelector.r_keyD[rname]
+        else :
+            r1n=rname
         return r1n+rnum
 
 def patchRasmolAminoColor():
