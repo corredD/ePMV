@@ -16,8 +16,8 @@ ePMV is include as a module in the PMV MGLToolsPckgs 1.5.6 [1] and thus doesn't 
 With the help of developers like you, this list can easily extend to include Sketchup (PySup), 3D Studio Max (via Py3dsMax @Blur-dev), Houdini, RealFlow, SoftImage XSI (PySoftimage), and many others... 
 
 INSTALLATION
-- copy the plugin in the host 3d application plugin directory and run it
-- the plugin ask for the MGLTools parent directory (ie mgltools-1.5.6 or Download or ...)
+- open the host application and run the script install_plugin (.mel for maya, .py for other).
+- click install, wait, restart.
 
 For more Detail see http://epmv.scripps.edu/
 
