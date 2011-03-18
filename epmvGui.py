@@ -565,7 +565,7 @@ class Parameter_pmvPalette(uiadaptor):
         self.block = True
         self.title = "pmv Palette"
         self.epmv = epmv
-        witdh=350
+        #self.witdh=500
         if id is not None :
             id=id
         else:
@@ -627,8 +627,8 @@ class Parameter_pmvPalette(uiadaptor):
                 la = self.group[key]["widget"][name][0]
                 elemframe[key].append([wi,la,])
             frame = self._addLayout(name=self.listPalettes[key][0],
-                                    elems=elemframe[key],collapse=True,
-                                    type = "tab")
+                                    elems=elemframe[key],collapse=True,)
+#                                    type = "tab")
             self._layout.append(frame)
 #        else:
 #            for key in ordered:
