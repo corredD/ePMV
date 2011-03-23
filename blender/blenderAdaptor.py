@@ -179,10 +179,11 @@ class blenderAdaptor(epmvAdaptor):
                 mesh=iMe[atN[0]]
                 if type(mesh) == str :
                     mesh=self.helper.getMesh(mesh)
-                atfname = at.full_name().replace("'","b")+"n"+str(at.number)
-                #there is a string lenght limitation in blender object name...
+                atfname = self.atomNameRule(at,n)
+                #at.full_name().replace("'","b")+"n"+str(at.number)
+                #there is a string lenght limitation in blender object name...this is too long
                 #print "fullname ",atfname
-                OBJ=scn.objects.new(mesh,n+"_"+atfname)
+                OBJ=scn.objects.new(mesh,atfname)
                 #print "obj ",OBJ.name
                 self.helper.translateObj(OBJ,atC)
                 OBJ.setMaterials([Blender.Material.Get(atN[0])])

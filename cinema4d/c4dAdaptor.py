@@ -220,13 +220,14 @@ class c4dAdaptor(epmvAdaptor):
 #                scaleFactor=float(R)+float(radius)*float(scale)
                 atN=at.name
                 if atN[0] not in AtomElements.keys() : atN="A"
-                fullname = at.full_name().replace("'","b")+"n"+str(at.number)
+                fullname = self.atomNameRule(at,n)
+                #at.full_name().replace("'","b")+"n"+str(at.number)
                 #print fullname
                 atC=at.coords#at._coords[0]
                 spher.append( c4d.BaseObject(c4d.Oinstance) )
                 spher[j][1001]=iMe[atN[0]]
                 #spher[j][1001]=1        
-                spher[j].SetName(n+"_"+fullname)#.replace(":","_")
+                spher[j].SetName(fullname)#.replace(":","_")
                 sc = iMe[atN[0]][905].x #radius of parent mesh
                 #if sc != scaleFactor : 
 #                if n=='B' :

@@ -565,7 +565,7 @@ class Parameter_pmvPalette(uiadaptor):
         self.block = True
         self.title = "pmv Palette"
         self.epmv = epmv
-        #self.witdh=500
+        self.witdh=200
         if id is not None :
             id=id
         else:
@@ -1078,7 +1078,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self._col=self.addVariable("int",1)
         self._dat=self.addVariable("int",1)
         
-        self.boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol"]
+        self.boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol","Selection"]
         self._bonesLevel=self.addVariable("int",1)
         
         self.uvselection=["unwrapped mesh UV","regular disposed triangle"]
@@ -1134,7 +1134,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                                     type="pullMenu",),#elf.edit_Selection},
                          "bones":self._addElemt(name="Bones Level",
                                     value=self.boneslevel,
-                                    width=80,height=10,action=self.dsBones,
+                                    width=80,height=10,action=None,
                                     variable=self._bonesLevel,
                                     type="pullMenu",),
                          "uv":self._addElemt(name="Mapping:",
@@ -2203,6 +2203,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             for ch in lchain:
                 #get the center of the chain
                 lsel.append(util.getCenter(ch.residues.atoms.coords))           
+        elif level =='Selection':
+            lsel = selection
         else :
             if sel == mol.name :
                 for ch in lchain:
@@ -2222,7 +2224,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         return lsel
 
     def dsBones(self,*args):
-        #boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol"]
+        #boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol","Selection"]
         mname,mol,sel,selection,display = self.getDsInfo("arm")
         if mol is None : 
             return        

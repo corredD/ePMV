@@ -153,6 +153,7 @@ class mayaAdaptor(epmvAdaptor):
             typeSp = "poly"
         iMe={}
         baseparent=self.helper.getObject(name,doit=True)
+        #quality =>res
         if baseparent is None:    
             baseparent=self.helper.newEmpty(name)
             self.helper.addObjectToScene(self.helper.getCurrentScene(),
@@ -176,7 +177,8 @@ class mayaAdaptor(epmvAdaptor):
                 #cmds.sets (nodeName, e=True, fe='initialShadingGroup')
     #        toggleDisplay(iMe[atn],False)
         return iMe
-                                            
+
+
     def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
                              join=0,geom=None,pb=False):
         sphers=[]
@@ -215,9 +217,9 @@ class mayaAdaptor(epmvAdaptor):
             def oneinstance(at,pb=False):
                 atN=at.name
                 if atN[0] not in self.AtmRadi.keys(): atN="A"
-                fullname = at.full_name().replace(":","_").replace(" ","_").replace("'","b")+"n"+str(at.number)
+                fullname = self.atomNameRule(at,n)
                 atC=at.coords
-                sph = self.helper.newMInstance(n+"_"+fullname,iMe[atN[0]],location=atC,parent = parent)
+                sph = self.helper.newMInstance(fullname,iMe[atN[0]],location=atC,parent = parent)
                 #self.helper.addObjectToScene(self.helper.getCurrentScene(),sph,parent=parent)
                 self.helper.toggleDisplay(sph,False)
                 if pb :
@@ -247,27 +249,30 @@ class mayaAdaptor(epmvAdaptor):
             c = atomset.coords
         object,bones=self.helper.armature(name, c,scn=scn,root=root)
         return object,bones
-        
-    def splitName(self,name):
-    #general function-> in the adaptor ?
-        #T_3bna_A_C11_P_OP2
-        #"T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
-        if name[0] == "T" : #sticks name.. which is "T_"+chname+"_"+Resname+"_"+atomname+"_"+atm2.name\n'
-            tmp=name.split("_")
-            return ["T",tmp[1],tmp[2],tmp[3][0:1],tmp[3][1:],tmp[4]]
-        else :
-            #case where 2 __ S_3bna_A__DC3_O2 A
-            tmp=name.split("_")
-            indice=tmp[0]#.split("_")[0]
-            molname=tmp[1]#.split("_")[1]
-            chainname=tmp[2]
-            ires = 3
-            if len(tmp) > 5 :
-                ires = 4
-            residuename=tmp[ires][0:3]
-            residuenumber=tmp[ires][3:]
-            atomname=tmp[ires+1]
-            return [indice,molname,chainname,residuename,residuenumber,atomname]
+
+#    def atomNameRule(self,atom,prefix):
+#        return prefix+"_"+atom.full_name().replace(":","_").replace(" ","_").replace("'","b")+"n"+str(atom.number)
+#
+#    def splitName(self,name):
+#    #general function-> in the adaptor ?
+#        #T_3bna_A_C11_P_OP2
+#        #"T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
+#        if name[0] == "T" : #sticks name.. which is "T_"+chname+"_"+Resname+"_"+atomname+"_"+atm2.name\n'
+#            tmp=name.split("_")
+#            return ["T",tmp[1],tmp[2],tmp[3][0:1],tmp[3][1:],tmp[4]]
+#        else :
+#            #case where 2 __ S_3bna_A__DC3_O2 A. This depend also on the atomNameRule
+#            tmp=name.split("_")
+#            indice=tmp[0]#.split("_")[0]
+#            molname=tmp[1]#.split("_")[1]
+#            chainname=tmp[2]
+#            ires = 3
+#            if len(tmp) > 5 :
+#                ires = 4
+#            residuename=tmp[ires][0:3]
+#            residuenumber=tmp[ires][3:]
+#            atomname=tmp[ires+1]
+#            return [indice,molname,chainname,residuename,residuenumber,atomname]
 
     def updateMolAtomCoordBones(self,mol,index=-1):
         #problem, theses are only CA
