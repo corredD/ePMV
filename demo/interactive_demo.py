@@ -1,4 +1,4 @@
-from Pmv.hostappInterface import demo
+from ePMV import demo
 dir = demo.__path__[0]+'/'
 rec = "hsg1.pdbqt"
 self.readMolecule(dir+rec)

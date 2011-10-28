@@ -1,0 +1,1 @@
+#ms/cms per chain#self.Mols is the array of currently loaded molecule from 0 to n#you can get a molecule from her namemolname = ""

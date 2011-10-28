@@ -1,8 +1,7 @@
-from Pmv.hostappInterface import demo
+from ePMV import demo
 dir = demo.__path__[0]+'/'
 
 epmv.center_mol = False
-epmv.doCloud = False
 epmv.useModeller = epmv.gui._useModeller = False
 
 rec = "hsg1.pdbqt" #can modeller read it ?
@@ -59,10 +58,10 @@ self.displayCPK("ind")
 #self.setGeoms('bott',[geom1],log=0)#1oel
 #
 #What about physics...how to setup this using the helper..
-if epmv.host== 'c4dr12':
+if epmv.host== 'c4d':
     obj = self.Mols[0].geomContainer.geoms[self.Mols[0].chains[0].full_name()+'_line'][0]
     epmv.helper.setSoftBody(obj)
     obj = self.Mols[1].geomContainer.masterGeom.chains_obj[self.Mols[1].chains[0].name+"_cpk"]
     epmv.helper.setRigidBody(obj)
-    if hasattr(self.Mols[0],'epmvaction'):
-        self.Mols[0].epmvaction.modellerOptimizeInit()
+#    if hasattr(self.Mols[0],'epmvaction'):
+#        self.Mols[0].epmvaction.modellerOptimizeInit()

@@ -11,7 +11,7 @@ color a MSMS surface or any geometry according an APBS electrostatic grid (.dx)
 grid = epmv.gui.current_traj[0]# self.grids3D.values()[0]
 #2-get the surface from the current mol ?
 mol = epmv.gui.current_mol
-if 'MSMS-MOL'+mol.name in mol.geomContainer.geoms:
+if mol.geomContainer.geoms.has_key('MSMS-MOL'+mol.name):
     surf = mol.geomContainer.geoms['MSMS-MOL'+mol.name]# self.Mols[0].geomContainer.geoms['MSMS-MOL1TIMtr']
 else :
     epmv.gui.displaySurf()

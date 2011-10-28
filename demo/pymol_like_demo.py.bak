@@ -35,7 +35,7 @@ else :
     #get epmv and mv (adaptor and molecular viewer)
     if sotf == 'c4d':
         import c4d
-        epmv = list(c4d.mv.values())[0]#[dname]
+        epmv = c4d.mv.values()[0]#[dname]
 self = epmv.mv
 from Pmv import hostappInterface
 plgDir = hostappInterface.__path__[0]
@@ -157,8 +157,8 @@ if soft == 'c4d':
 #make isocontour exple
 
 self.readAny(demodir+pdbname+mext)
-name = list(self.grids3D.keys())[-1]
-print(name)
+name = self.grids3D.keys()[-1]
+print name
 grid = self.grids3D[name]
 self.cmol = mol  	
 self.isoC.select(grid_name=name)
@@ -204,7 +204,7 @@ lgeom[2].append(metaballs) #Metaballs
 lgeom[2].append(obj[0]) #CMS
 lgeom[2].append(epmv._getObject(msms)) #MSMS
 
-print(lgeom)
+print lgeom
 #move it according the grid rules :
 sc = 3.
 x = [center[0] - (sc*radius),center[0] - (radius),center[0] + (radius),center[0] + (sc*radius)]
@@ -214,7 +214,7 @@ z = center[2]
 def position(lgeom,x,y,z,mname):
     for i in range(3):
         for j in range(4):
-            print(i,j)
+            print i,j
             obj = lgeom[i][j]
             #print obj
             if obj == "iso":
@@ -227,6 +227,6 @@ def position(lgeom,x,y,z,mname):
                 epmv.helper.translateObj(isoN,coord,use_parent=False)
             elif obj != "" and obj != None:
                 coord= [x[j],y[i],z]
-                print(obj)
+                print obj
                 epmv.helper.translateObj(obj,coord,use_parent=False)
 #position(lgeom,x,y,z,mname)
