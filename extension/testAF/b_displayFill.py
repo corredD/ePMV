@@ -17,7 +17,7 @@ verts1 = []
 radii1 = []
 colors1 =[]
 master = orgaToMasterGeom[h1]
-print master
+print(master)
 
 for pos, rot, ingr, ptInd in h1.molecules:
     level = ingr.maxLevel
@@ -27,7 +27,7 @@ for pos, rot, ingr, ptInd in h1.molecules:
         radii1.append( ingr.radii[level][ii] *2.)
         colors1.append( ingr.color)
 
-print len(verts1)
+print(len(verts1))
 bg = bl.newEmpty('spheres')
 bl.addObjectToScene(scn,bg)
 meshsphere=Mesh.Primitives.UVsphere(int(10),int(10),1)
@@ -50,7 +50,7 @@ for pos, rot, ingr, ptInd in h1.molecules:
         geom = ingr.mesh
         mat = rot.copy()
         mat[:3, 3] = pos
-        if not meshGeoms.has_key(geom):
+        if geom not in meshGeoms:
             meshGeoms[geom] = [mat]
             geom.Set(materials = [ingr.color], inheritMaterial=0)
             #create the mesh
@@ -60,7 +60,7 @@ for pos, rot, ingr, ptInd in h1.molecules:
             meshGeoms[geom].append(mat)
 
 
-for geom, mats in meshGeoms.items():
+for geom, mats in list(meshGeoms.items()):
     instancesExtra = []
     for i,mat in enumerate(mats):
         instancesExtra.append(bl.setInstance(geom.name+str(i),geom.ob, mat))
@@ -120,7 +120,7 @@ for orga in h1.organelles:
             else:
                 gdict = meshGeomsInt
 
-            if not gdict.has_key(geom):
+            if geom not in gdict:
                 gdict[geom] = [mat]
                 geom.Set(materials=[ingr.color], inheritMaterial=0)
                 #create the mesh
@@ -131,7 +131,7 @@ for orga in h1.organelles:
 
     g = orgaToMasterGeom[orga.number]
     bg = bl.getObject(g.name)
-    for geom, mats in meshGeomsSurf.items():
+    for geom, mats in list(meshGeomsSurf.items()):
         #create the instance according the matrices
         instancesSurf = []
         for i,mat in enumerate(mats):
@@ -142,7 +142,7 @@ for orga in h1.organelles:
 
     g = orgaToMasterGeom[-orga.number]
     bg = bl.getObject(g.name)
-    for geom, mats in meshGeomsInt.items():
+    for geom, mats in list(meshGeomsInt.items()):
         #create the instance according the matrices
         instancesInt = []
         for i,mat in enumerate(mats):

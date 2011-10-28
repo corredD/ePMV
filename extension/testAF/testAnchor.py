@@ -81,12 +81,12 @@ o1.setInnerRecipe(rCyto1)
 
 
 h1.setMinMaxProteinSize()
-print 'Surf', rSurf1.getMinMaxProteinSize()
-print 'Cyto', rCyto1.getMinMaxProteinSize()
-print 'o1', o1.getMinMaxProteinSize()
-print 'smallest', h1.smallestProteinSize
-print 'largest', h1.largestProteinSize
-print 'Bounding box', h1.boundingBox
+print('Surf', rSurf1.getMinMaxProteinSize())
+print('Cyto', rCyto1.getMinMaxProteinSize())
+print('o1', o1.getMinMaxProteinSize())
+print('smallest', h1.smallestProteinSize)
+print('largest', h1.largestProteinSize)
+print('Bounding box', h1.boundingBox)
 
 pad = 100.
 afviewer.SetHistoVol(h1,pad,display=False)
@@ -98,14 +98,14 @@ bb = [[0, y, z], maxi]
 h1.buildGrid(boundingBox=bb)#, gridFileOut='1vesicle_new.grid' )
 afviewer.displayFillBox(bb)
 
-print 'gridSpacing', h1.gridSpacing
+print('gridSpacing', h1.gridSpacing)
 h1.printFillInfo()
 
 #raw_input('press enter to start')
 t1 = time()
 h1.fill3(seedNum=0)
 #
-print 'time to fill', time()-t1
+print('time to fill', time()-t1)
 h1.printFillInfo()
 #
 afviewer.displayFill()

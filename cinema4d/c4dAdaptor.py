@@ -8,7 +8,7 @@
 #############################################################################
 
 from ePMV.epmvAdaptor import epmvAdaptor
-from pyubic.cinema4d import helperC4D
+from upy.cinema4d import c4dHelper
 
 import c4d
 from c4d import gui
@@ -24,7 +24,7 @@ class c4dAdaptor(epmvAdaptor):
     """
     The specific adaptor for C4D R12.
     
-    from Pmv.hostappInterface.cinema4d_dev.c4dAdaptor import c4dAdaptor
+    from ePMV.cinema4d.c4dAdaptor import c4dAdaptor
     epmv = c4dAdaptor(debug=1)
     epmv.mv.readMolecule("/Users/ludo/blenderKTF/1CRN.pdb")
     epmv.mv.computeMSMS("1CRN")
@@ -34,7 +34,7 @@ class c4dAdaptor(epmvAdaptor):
     """
 
     def __init__(self,gui=False,mv=None,debug=0):
-        self.helper = helperC4D.c4dHelper()
+        self.helper = c4dHelper.c4dHelper()
         epmvAdaptor.__init__(self,mv,host='c4d',debug=debug)
         self.MAX_LENGTH_NAME = 20
         self.soft = 'c4d'
@@ -91,7 +91,7 @@ class c4dAdaptor(epmvAdaptor):
         root = self.helper.getObject("ePMV")
         if self.synchro_realtime and root is None :
             root = self.helper.newEmpty("ePMV")
-            root.MakeTag(102374500)
+            root.MakeTag(1027093)
             self.helper.addObjectToScene(self.helper.getCurrentScene(),root)
 
     def _makeRibbon(self,name,coords,shape=None,spline=None,parent=None):
@@ -130,7 +130,7 @@ class c4dAdaptor(epmvAdaptor):
             meshsphere,basesphere=self.helper.Sphere(name+"basesphere",res=segments,
                                                      parent=baseShape)
 #            self.helper.toggleDisplay(basesphere,display=False)
-        for atn in self.AtmRadi.keys():
+        for atn in list(self.AtmRadi.keys()):
             #when we create we dont want to scale, just take the radius
             rad=float(self.AtmRadi[atn])
             atparent=self.helper.getObject(name+"_"+atn)
@@ -154,9 +154,22 @@ class c4dAdaptor(epmvAdaptor):
             if geom.name[:4] in ['Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
                 proxyObject=False       
             objToColor = geom.mesh
+        elif hasattr(geom,"obj"):
+            objToColor = geom.obj
         else :
+            objToColor = None            
+        if hasattr(geom,"name") :
+            if geom.name[:4] in ['secondarystructure','Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
+                proxyObject=False
+        if objToColor is None :
             if type(geom) is str :
                 objToColor = self.helper.getObject(geom)
+            elif type(geom) is list :
+                objToColor = geom[0]
+                if type(geom) is str :
+                    objToColor = self.helper.getObject(geom)
+                else :
+                    objToColor = geom
             else :
                 objToColor = geom
         self.helper.changeColor(objToColor,colors,perVertex=perVertex,
@@ -181,7 +194,7 @@ class c4dAdaptor(epmvAdaptor):
         if cloud is None :
             cloud = self.helper.PointCloudObject(name+"_cloud",
                                         vertices=coords,
-                                        parent=None,atomarray=False)
+                                        parent=None,atomarray=False)[0]
         metab=self.helper.create_metaballs(name,sourceObj=cloud,parent=root,
                                            coords=coords)
         return [None,metab]
@@ -195,14 +208,17 @@ class c4dAdaptor(epmvAdaptor):
         sphers=[]
         k=0
         n='S'
-        if name.find('balls') != (-1) : n='B'
+        nn='cpk'
+        if name.find('balls') != (-1) : 
+            n='B'
+            nn='balls'
         
         if geom is not None:
             coords=geom.getVertices()
         else :
             coords=x.coords
         hiera = 'default'    
-        parent=self.findatmParentHierarchie(x[0],n,hiera) 
+#        parent=self.findatmParentHierarchie(x[0],n,hiera) 
         mol = x[0].getParentOfType(Protein)        
         if pb :
             self.helper.resetProgressBar()
@@ -211,39 +227,50 @@ class c4dAdaptor(epmvAdaptor):
             spher=[]
             oneparent = True 
             atoms = c.residues.atoms
-            parent=self.findatmParentHierarchie(atoms[0],n,hiera)
+            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn])
             #print "finded",parent        
-            for j in xrange(len(atoms.coords)):
+            for j in range(len(atoms.coords)):
                 #at=res.atoms[j]
                 at=atoms[j]
                 radius = at.radius
 #                scaleFactor=float(R)+float(radius)*float(scale)
                 atN=at.name
-                if atN[0] not in AtomElements.keys() : atN="A"
+                if atN[0] not in list(AtomElements.keys()) : atN="A"
                 fullname = self.atomNameRule(at,n)
                 #at.full_name().replace("'","b")+"n"+str(at.number)
                 #print fullname
                 atC=at.coords#at._coords[0]
                 spher.append( c4d.BaseObject(c4d.Oinstance) )
-                spher[j][1001]=iMe[atN[0]]
+                if atN[0] in iMe :
+                    sm=iMe[atN[0]]
+                else :
+                    sm=iMe["A"]
+                spher[j][1001]=sm
                 #spher[j][1001]=1        
                 spher[j].SetName(fullname)#.replace(":","_")
-                sc = iMe[atN[0]][905].x #radius of parent mesh
+                sc = sm[905].x #radius of parent mesh
+                #we can compare to at.vwdRadius
+                if sc != radius :
+                    print(("rad",sc,radius,at.name))
                 #if sc != scaleFactor : 
 #                if n=='B' :
 #                    scale = 1.
 #                    spher[j][905]=c4d.Vector(float((1/sc)*scale),float((1/sc)*scale),float((1/sc)*scale))                #
                 spher[j].SetAbsPos(self.helper.FromVec(atC))
                 texture = spher[j].MakeTag(c4d.Ttexture)
-                texture[1010] = self.helper.getMaterial(atN[0])
-                p = self.findatmParentHierarchie(at,n,hiera)
+                mat = self.helper.getMaterial(atN[0])
+                if mat is None :
+                    self.setupMaterials()
+                    mat = self.helper.getMaterial(atN[0])
+                texture[1010] = mat
+                #p = self.findatmParentHierarchie(at,n,hiera)
                 #print "dinded",p
-                if parent != p : 
-                    cp = p
-                    oneparent = False
-                    parent = p
-                else :
-                    cp = parent                            
+#                if parent != p : 
+#                    cp = p
+#                    oneparent = False
+#                    parent = p
+#                else :
+                cp = parent                            
                 #print "parent",cp
                 self.helper.addObjectToScene(self.helper.getCurrentScene(),spher[j],parent=cp)
                 self.helper.toggleDisplay(spher[j],False)
@@ -272,24 +299,27 @@ class c4dAdaptor(epmvAdaptor):
         #problem, theses are only CA
         vt = []
         bones = mol.geomContainer.geoms["armature"][1]
-        vt = [self.helper.vc4d(j.GetMg().off) for j in bones]
+        vt = [self.helper.ToVec(j.GetMg().off) for j in bones]
 #        for join in bones:
 #            pos=join.GetMg().off
-#            vt.append(self.helper.vc4d(pos))
-        print vt[0]
+#            vt.append(self.helper.ToVec(pos))
+        print(vt[0])
         return vt
     
     def updateMolAtomCoordSpline(self,mol,index=-1):
         #problem, theses are only CA
-        vt = []
+        vts = []
     #    mesh = mol.geomContainer.geoms['lines'].obj
-        name=mol.name+"_"+mol.chains[0].name+"spline"
-        spline = self.helper.getCurrentScene().SearchObject(name)
-        points = spline.GetAllPoints()
-    #    matr= mesh.GetMg()
-    #    vt = map(lambda x,m=matr: vc4d(x),points)
-        vt = [self.helper.vc4d(x) for x in points]
-        return vt
+        for ch in mol.chains:
+            name=mol.name+"_"+ch.name+"spline"
+            spline = self.helper.getCurrentScene().SearchObject(name)
+            points = spline.GetAllPoints()
+            matr= spline.GetMg()
+            vt=[self.helper.ToVec(x*matr) for x in points]
+            #vt = map(lambda x,m=matr: ToVec(x),points)
+            #vt = [self.helper.ToVec(x) for x in points]
+            vts.append(vt)
+        return vts
         
     def updateMolAtomCoordLines(self,mol,index=-1):
         #just need that cpk or the balls have been computed once..
@@ -298,22 +328,34 @@ class c4dAdaptor(epmvAdaptor):
         # the idea : spline/dynamic move link to cpl whihc control balls
         # this should be the actual coordinate of the ligand
         # what about the rc...
-        vt = []
+        vts = []
     #    mesh = mol.geomContainer.geoms['lines'].obj
-        mesh = mol.geomContainer.geoms[mol.chains[0].full_name()+'_line'][0]
-        points = mesh.GetAllPoints()
-        matr= mesh.GetMg()
-        vt=[self.helper.vc4d(x*matr) for x in points]
-        #vt = map(lambda x,m=matr: vc4d(x*m),points)
+        for ch in mol.chains:
+            vt=[]
+            mesh = mol.geomContainer.geoms[ch.full_name()+'_line'][0]
+            #check the derform mode before
+            deform = mesh.GetDeformMode()
+            meshcache = mesh.GetDeformCache()
+            if meshcache is not None:
+                meshcache = mesh.GetDeformCache()
+                points = meshcache.GetAllPoints()
+                vt=[self.helper.ToVec(x) for x in points]
+            else :
+                points = mesh.GetAllPoints()
+                matr= mesh.GetMg()
+                vt=[self.helper.ToVec(x*matr) for x in points]
+            vts.extend(vt)
+        #vt = map(lambda x,m=matr: ToVec(x*m),points)
         #these are the cpk
         if hasattr(mol.geomContainer.geoms['cpk'],'obj'):
             sph = mol.geomContainer.geoms['cpk'].obj
             #each have to be translate
-            [x.SetAbsPos(p) for x,p in zip(sph,points)]
+            [x.SetAbsPos(self.helper.FromVec(p)) for x,p in zip(sph,vts)]
             #map(lambda x,p:x.SetAbsPos(p),sph,points)
             masterCPK=sph[0].GetUp()
-            masterCPK.SetMg(matr)
-        return vt#updateMolAtomCoordCPK(mol,index=index)
+            if meshcache is None:
+                masterCPK.SetMg(matr)
+        return vts#updateMolAtomCoordCPK(mol,index=index)
         
 
 #    def display_CPK(self,mol,sel,display,needRedraw=False,quality=0,cpkRad=0.0,scaleFactor=1.0,useTree="default",dialog=None):
@@ -381,8 +423,8 @@ class c4dAdaptor(epmvAdaptor):
                     arr[1002] = 3 #subdivision
                     self.helper.addObjectToScene(scn,arr,parent=parent)                
                     bonds, atnobnd = ch.residues.atoms.bonds
-                    indices = map(lambda x: (x.atom1._bndIndex_,
-                                             x.atom2._bndIndex_), bonds)
+                    indices = [(x.atom1._bndIndex_,
+                                             x.atom2._bndIndex_) for x in bonds]
     
                     lines = self.helper.createsNmesh(ch.full_name()+'_line',
                                                      ch.residues.atoms.coords,
@@ -391,5 +433,6 @@ class c4dAdaptor(epmvAdaptor):
                     mol.geomContainer.geoms[ch.full_name()+'_line'] = lines
                     #display using AtomArray
                 else : #need to update
-                    self.helper._updateLines(lines, chains=ch)
+#                    self.helper._updateLines(lines, chains=ch)
+                    self.helper.updatePoly(lines,vertices=ch.residues.atoms.coords)
     

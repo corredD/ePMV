@@ -68,9 +68,9 @@ if os.path.isfile(mgldirfile) :
 else :
     cmds.confirmDialog( title='ePMV', message="ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile, button=['OK'], 
                            defaultButton='OK')
-print MGL_ROOT
+print(MGL_ROOT)
 ICONSDIR=MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+"images"+os.sep+"icons"+os.sep
-print ICONSDIR
+print(ICONSDIR)
 #register plugin dir
 #this is handle by the user
 #plugpath=os.environ["MAYA_PLUG_IN_PATH"].split(":")
@@ -88,10 +88,10 @@ else :
     sys.path.append('/Library/Python/2.5/site-packages/')
 
 kPluginCmdName = "ePMV"
-print kPluginCmdName
+print(kPluginCmdName)
 
-import pyubic
-pyubic.setUIClass('maya')
+import upy
+upy.setUIClass('maya')
 from ePMV import epmvGui
 
 # command
@@ -99,7 +99,7 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
     def __init__(self):
         OpenMayaMPx.MPxCommand.__init__(self)
     def doIt(self,argList):
-        print argList
+        print(argList)
         epmvui = epmvGui.epmvGui()
         epmvui.setup(rep="epmv",mglroot=MGL_ROOT,host='maya')
         epmvui.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,

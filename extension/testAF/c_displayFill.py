@@ -116,7 +116,7 @@ if r :
             geom = ingr.mesh
             mat = rot.copy()
             mat[:3, 3] = pos
-            if not meshGeoms.has_key(geom):
+            if geom not in meshGeoms:
                 meshGeoms[geom] = [mat]
                 geom.Set(materials=[ingr.color], inheritMaterial=0, visible=0)
                 if ViewerType != 'dejavu':
@@ -131,7 +131,7 @@ if r :
             else:
                 meshGeoms[geom].append(mat)
                 if ViewerType == 'dejavu': vi.AddObject(geom, parent=orgaToMasterGeom[ingr])
-    for geom, mats in meshGeoms.items():
+    for geom, mats in list(meshGeoms.items()):
         geom.Set(instanceMatrices=mats, visible=1)        
         if ViewerType != 'dejavu':
             #find the polygon and the ingr?#polygon = ingr.mesh_3d
@@ -288,7 +288,7 @@ for orga in h1.organelles:
                     ingr.mesh_3d.set_pos(c4d.Vector(1000.,1000.,1000.))                                                    
                 #print "c4d",ingr.mesh_3d.get_name()
 
-    for ingr, mats in matrices.items():
+    for ingr, mats in list(matrices.items()):
         geom = ingr.mesh
         geom.Set(instanceMatrices=mats, visible=1)
         #print ingr,ingr.mesh.name,orgaToMasterGeom[ingr]    

@@ -263,13 +263,13 @@ o1.setSurfaceRecipe(rSurf1)
 #o1.setInnerRecipe(rMatrix1)
 
 h1.setMinMaxProteinSize()
-print 'Cyto', rCyto.getMinMaxProteinSize()
-print 'Surf', rSurf1.getMinMaxProteinSize()
-print 'Matrix', rMatrix1.getMinMaxProteinSize()
-print 'o1', o1.getMinMaxProteinSize()
-print 'smallest', h1.smallestProteinSize
-print 'largest', h1.largestProteinSize
-print 'Bounding box', h1.boundingBox
+print('Cyto', rCyto.getMinMaxProteinSize())
+print('Surf', rSurf1.getMinMaxProteinSize())
+print('Matrix', rMatrix1.getMinMaxProteinSize())
+print('o1', o1.getMinMaxProteinSize())
+print('smallest', h1.smallestProteinSize)
+print('largest', h1.largestProteinSize)
+print('Bounding box', h1.boundingBox)
 # add padding
 bb = h1.boundingBox
 pad = 200.
@@ -277,7 +277,7 @@ x,y,z = bb[0]
 bb[0] = [x-pad, y-pad, z-pad]
 x,y,z = bb[1]
 bb[1] = [x+pad, y+pad, z+pad]
-print 'Bounding box with padding', h1.boundingBox
+print('Bounding box with padding', h1.boundingBox)
 
 (x,y,z), maxi = h1.boundingBox
 bb = [[0, y, z], maxi]
@@ -285,21 +285,21 @@ bb = [[0, y, z], maxi]
 h1.buildGrid(boundingBox=bb)#, gridFileOut='1vesicle_new.grid' )
 #h1.buildGrid(gridFileOut='1vesicle_new.grid' )
 
-execfile(plgDir+'/extension/testAF/c_displayPreFill.py')
+exec(compile(open(plgDir+'/extension/testAF/c_displayPreFill.py').read(), plgDir+'/extension/testAF/c_displayPreFill.py', 'exec'))
 
-print 'gridSpacing', h1.gridSpacing
+print('gridSpacing', h1.gridSpacing)
 #h1.printFillInfo()
 
 #raw_input('press enter to start')
 t1 = time()
 h1.fill3(seedNum=0)
 
-print 'time to fill', time()-t1
+print('time to fill', time()-t1)
 #h1.printFillInfo()
 
 t1 = time()
-execfile(plgDir+'/extension/testAF/c_displayFill.py')
-print 'time to display', time()-t1
+exec(compile(open(plgDir+'/extension/testAF/c_displayFill.py').read(), plgDir+'/extension/testAF/c_displayFill.py', 'exec'))
+print('time to display', time()-t1)
 
 ## for ingr, jitterList, collD1, collD2 in h1.successfullJitter:
 ##     print ingr.name[:4], len(ingr.positions), len(jitterList)

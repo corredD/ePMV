@@ -30,15 +30,25 @@ See http://mgltools.scripps.edu/documentation/tutorial/volume-rendering for more
 """
 import sys
 import re, types, os, math, pickle
-import Tkinter, Pmw, tkFileDialog, tkMessageBox
+try :
+    import tkinter
+    import tkinter.filedialog
+    import tkinter.messagebox
+    from tkinter.colorchooser import askcolor
+except :
+    import Tkinter as tkinter
+    import tkFileDialog
+    tkinter.filedialog = tkFileDialog
+    import tkMessageBox
+    tkinter.messagebox = tkMessageBox
+import Pmw
 from PIL import Image, ImageTk
-from tkColorChooser import askcolor
 from DejaVu.Geom import Geom
 from ViewerFramework.VFCommand import Command, CommandGUI
 from mglutil.gui import widgetsOnBackWindowsCanGrabFocus
-from mglutil.gui.BasicWidgets.Tk.customizedWidgets import ListChooser
+#from mglutil.gui.BasicWidgets.Tk.customizedWidgets import ListChooser
 from mglutil.gui.InputForm.Tk.gui import InputFormDescr, InputForm
-from mglutil.gui.BasicWidgets.Tk.multiListbox import MultiListbox
+#from mglutil.gui.BasicWidgets.Tk.multiListbox import MultiListbox
 from mglutil.util.misc import ensureFontCase
 from Volume.IO.volReaders import ReadMRC, ReadCCP4, ReadCNS, ReadGRD, ReadBRIX,\
                                     ReadSPIDER, ReadRawiv, ReadEM, ReadFLDBinary
@@ -65,7 +75,7 @@ from DejaVu.Textured2DArray import textured2DArray
 import numpy.oldnumeric as Numeric
 import numpy
 from DejaVu.colorMap import ColorMap
-from DejaVu.ColormapGui import ColorMapGUI
+#from DejaVu.ColormapGui import ColorMapGUI
 from opengltk.OpenGL import GL
 
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
@@ -84,9 +94,9 @@ def get_icon(icon, master):
     head, ext = os.path.splitext(iconfile)
     if ext == '.gif':
         if master is None:
-            Icon = Tkinter.PhotoImage(file=iconfile)
+            Icon = tkinter.PhotoImage(file=iconfile)
         else:
-            Icon = Tkinter.PhotoImage(file=iconfile, master=master)
+            Icon = tkinter.PhotoImage(file=iconfile, master=master)
     else:
         image = Image.open(iconfile)
         if master is None:
@@ -115,7 +125,7 @@ class addGridCommand(Command):
         grid3D.std = std
         if name == None:
             name = str(grid3D) 
-        if self.vf.grids3D.has_key(name):
+        if name in self.vf.grids3D:
             name += "_" 
         def returnStringRepr():
             return None, "\"" + name + "\""
@@ -164,7 +174,7 @@ class addGridCommand(Command):
             if self.vf.Grid3DCommands.root:
                 grid_name = name
                 grid_type = grid3D.data.dtype
-                self.vf.Grid3DCommands.mlb.insert(Tkinter.END, (grid_name, 
+                self.vf.Grid3DCommands.mlb.insert(tkinter.END, (grid_name, 
                                                 grid3D.dimensions, grid_type ))
 
         #self.vf.Grid3DCommands.mlb.selection_clear(0, Tkinter.END)
@@ -201,17 +211,20 @@ by Grid3D-->Read GUI
                     ('AVS/FLD Binary',None),
                     ]
 
-        #if self.vf.hasGui :
-        self.ifd=InputFormDescr(title='Map Types')
-        self.ifd.append({'name':'listchooser',
-                'widgetType':ListChooser,
-                'wcfg':{'title':'Select a Map Type:',
-                        'entries':mapItems,
-                        'lbwcfg':{'width':20,'height':12},
-                        'mode':'single',
-                        },
-                'gridcfg':{'sticky':'w','row':-1}
-                })
+        try:
+            from mglutil.gui.BasicWidgets.Tk.customizedWidgets import ListChooser
+            self.ifd=InputFormDescr(title='Map Types')
+            self.ifd.append({'name':'listchooser',
+                    'widgetType':ListChooser,
+                    'wcfg':{'title':'Select a Map Type:',
+                            'entries':mapItems,
+                            'lbwcfg':{'width':20,'height':12},
+                            'mode':'single',
+                            },
+                    'gridcfg':{'sticky':'w','row':-1}
+                    })
+        except:
+            pass
 
     def onAddCmdToViewer(self):
         if not hasattr(self.vf, 'grids3D'):
@@ -222,7 +235,7 @@ by Grid3D-->Read GUI
            \nRequired Arguments:\n    
                 gridFile  : location of the grid file\n
         """
-        return apply(self.doitWrapper, (gridFile,), kw)
+        return self.doitWrapper(*(gridFile,), **kw)
 
     def doit(self, gridFile, name=None, show=True, normalize=True):
         """Reads gridFile and adds it to Control Panel
@@ -234,7 +247,7 @@ by Grid3D-->Read GUI
         """
         if not gridFile: return
         if not os.path.exists(gridFile):
-            print gridFile, " not exists" 
+            print(gridFile, " not exists") 
         else:
             if(re.search('\.mrc$',gridFile,re.I)):
                 reader = ReadMRC()
@@ -268,8 +281,8 @@ by Grid3D-->Read GUI
                         return
         try:
             grid3D = reader.read(gridFile, normalize=True)
-        except Exception, inst:
-            print inst
+        except Exception :
+#            print(inst)
             if not show: return
             if self.vf.hasGui :
                 reader = self.askMapType()
@@ -277,9 +290,9 @@ by Grid3D-->Read GUI
                     return
                 try:
                     grid3D = reader.read(gridFile, normalize=True)
-                except Exception, inst:
-                    print inst
-                    tkMessageBox.showerror("Error: in choosing a map", 
+                except Exception :
+#                    print(inst)
+                    tkinter.messagebox.showerror("Error: in choosing a map", 
               "Could not parse %s. Please open Python shell for Traceback"%gridFile)
                     return
             else : return
@@ -291,9 +304,9 @@ by Grid3D-->Read GUI
                     return
                 try:
                     grid3D = reader.read(gridFile, normalize=True)
-                except Exception, inst:
-                    print inst
-                    tkMessageBox.showerror("Error: in choosing a map", 
+                except Exception:
+#                    print(inst)
+                    tkinter.messagebox.showerror("Error: in choosing a map", 
               "Could not parse %s. Please open Python shell for Traceback"%gridFile)
                     return
             else : return
@@ -309,7 +322,7 @@ by Grid3D-->Read GUI
                     self.vf.GUI.VIEWER.Normalize_cb()
                 if show:
                     self.vf.Grid3DCommands.show()
-            elif self.vf.embeded and self.vf.hostApp.hostname == 'chimera':
+            elif self.vf.embeded and self.vf.host == 'chimera':
                 import VolumeViewer
                 v=VolumeViewer.open_volume_file(gridFile)[-1]
                 grid3D.ch_vol = v
@@ -317,9 +330,10 @@ by Grid3D-->Read GUI
         return grid3D
     
     def askMapType(self):
+        from mglutil.gui.BasicWidgets.Tk.customizedWidgets import ListChooser
         """Opens Select Map Type widget"""
-        f = InputForm(master=Tkinter._default_root,
-                            root=Tkinter.Toplevel(),
+        f = InputForm(master=tkinter._default_root,
+                            root=tkinter.Toplevel(),
                             descr=self.ifd, blocking=1, modal=1)
         maptype=f.go()
         if not maptype:
@@ -338,7 +352,7 @@ by Grid3D-->Read GUI
         elif choice=='UHBD/GRID':reader=UHBDReaderASCII()
         elif choice=='AVS/FLD Binary':self.reader=ReadFLDBinary()
         else: 
-            tkMessageBox.showerror("Error: in choosing a map", 
+            tkinter.messagebox.showerror("Error: in choosing a map", 
                                    "Error: in choosing" + choice)
             return False
         return reader
@@ -360,33 +374,34 @@ by Grid3D-->Read GUI
                      ('SPIDER', '*.spi'),
                      ('UHBD/GRID', '*.uhbd'),
                      ('all', '*')]
-        gridFile = tkFileDialog.askopenfilename(parent = parent, 
+        gridFile = tkinter.filedialog.askopenfilename(parent = parent, 
                                       filetypes=fileTypes, title = 'Grid File:')
         if gridFile is not None and len(gridFile):
             self.doitWrapper(gridFile, redraw=0)
 
 readAnyGridGUI = CommandGUI()
 readAnyGridGUI.addMenuCommand('menuRoot', 'Grid3D', 'Read...')
-
-class GridMultiListbox(MultiListbox):
-    """Extends MultiListbox from mglutil.gui.BasicWidgets.Tk.multiListbox"""
-    def __init__(self, master, lists, **kw):
-        MultiListbox.__init__(self, master, lists, **kw)
-        self.girdName = ''
-    def _select(self, y):
-        self.Grid3DCommands.root.config(cursor='watch')
-        self.Grid3DCommands.root.update()
-        row = self.lists[0].nearest(y)
-        self.selection_clear(0, Tkinter.END)
-        self.selection_set(row)
-        if row != -1:
-            girdName = self.Grid3DCommands.get_grid_name()
-            if girdName != self.girdName:
-                self.Grid3DCommands.current_cmd.select()
-                self.girdName = girdName
-        self.Grid3DCommands.root.config(cursor='')
-        return 'break'    
-    
+try:
+    class GridMultiListbox(MultiListbox):
+        """Extends MultiListbox from mglutil.gui.BasicWidgets.Tk.multiListbox"""
+        def __init__(self, master, lists, **kw):
+            MultiListbox.__init__(self, master, lists, **kw)
+            self.girdName = ''
+        def _select(self, y):
+            self.Grid3DCommands.root.config(cursor='watch')
+            self.Grid3DCommands.root.update()
+            row = self.lists[0].nearest(y)
+            self.selection_clear(0, tkinter.END)
+            self.selection_set(row)
+            if row != -1:
+                girdName = self.Grid3DCommands.get_grid_name()
+                if girdName != self.girdName:
+                    self.Grid3DCommands.current_cmd.select()
+                    self.girdName = girdName
+            self.Grid3DCommands.root.config(cursor='')
+            return 'break'    
+except:
+    pass
 width = 440    #width of the GUI
 height = 200   #height of the GUI
 
@@ -413,10 +428,10 @@ class Grid3DCommands(Command):
     
     def select(self, name):
         "Selects Listbox by Grid Name"
-        grids = self.mlb.lists[0].get(0,Tkinter.END)
+        grids = self.mlb.lists[0].get(0,tkinter.END)
         grids = list(grids)
         index = grids.index(name)
-        self.mlb.selection_clear(0,Tkinter.END)
+        self.mlb.selection_clear(0,tkinter.END)
         self.mlb.selection_set(index)
         
     def doit(self, show = True, **kw):
@@ -427,13 +442,13 @@ class Grid3DCommands(Command):
             
     def guiCallback(self, **kw):
         if not self.root:
-            self.root = Tkinter.Toplevel()
+            self.root = tkinter.Toplevel()
             self.root.title('3D Grid Rendering Control Panel')
             self.root.protocol("WM_DELETE_WINDOW", self.hide)
-            menu = Tkinter.Menu(self.root)
+            menu = tkinter.Menu(self.root)
             self.root.config(menu=menu)  
             self.root.minsize(width+5,width-5)
-            file = Tkinter.Menu(menu)
+            file = tkinter.Menu(menu)
             file.add_command(label='Open Grid...', 
                              command=self.vf.Grid3DAddRemove.add)
             file.add_command(label='Load Settings...', command=self.open)
@@ -441,10 +456,10 @@ class Grid3DCommands(Command):
 
             menu.add_cascade(label='File', menu=file)
             
-            self.PanedWindow = Tkinter.PanedWindow(self.root, handlepad=0,
-                                 handlesize=0, orient=Tkinter.VERTICAL, bd=1,
+            self.PanedWindow = tkinter.PanedWindow(self.root, handlepad=0,
+                                 handlesize=0, orient=tkinter.VERTICAL, bd=1,
                                  width=width,height=2*height)
-            self.PanedWindow.pack(fill=Tkinter.BOTH, expand=1)
+            self.PanedWindow.pack(fill=tkinter.BOTH, expand=1)
 
             self.mlb = GridMultiListbox(self.PanedWindow, ((' Grid Name', 33),  
                                                  ('Dimensions   ', 15),  
@@ -453,7 +468,7 @@ class Grid3DCommands(Command):
                                                  usehullsize = 1,
                                                  hull_width = width)
 
-            self.mlb.pack(expand=Tkinter.NO, fill=Tkinter.X)
+            self.mlb.pack(expand=tkinter.NO, fill=tkinter.X)
             self.mlb.Grid3DCommands = self
             for grid in self.vf.grids3D:
                 grid_name = grid
@@ -461,20 +476,20 @@ class Grid3DCommands(Command):
 #                    grid_name = grid_name[-37:]
 #                    grid_name = '...'+grid_name         
                 grid_type = self.vf.grids3D[grid].data.dtype.name
-                self.vf.Grid3DCommands.mlb.insert(Tkinter.END, (grid_name, 
+                self.vf.Grid3DCommands.mlb.insert(tkinter.END, (grid_name, 
                                   self.vf.grids3D[grid].dimensions, grid_type ))
             self.PanedWindow.add(self.mlb)            
 
-            main_frame = Tkinter.Frame(self.PanedWindow)
-            main_frame.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+            main_frame = tkinter.Frame(self.PanedWindow)
+            main_frame.pack(expand=tkinter.YES, fill=tkinter.BOTH)
             self.PanedWindow.add(main_frame, height=height+90)
             self.main_frame = main_frame
-            toolbar_frame = Tkinter.Frame(main_frame, bg='white',
-                                          relief=Tkinter.RIDGE, bd=2)
-            toolbar_frame.pack(expand=Tkinter.NO, fill=Tkinter.X)
+            toolbar_frame = tkinter.Frame(main_frame, bg='white',
+                                          relief=tkinter.RIDGE, bd=2)
+            toolbar_frame.pack(expand=tkinter.NO, fill=tkinter.X)
             self.toolbar_frame = toolbar_frame
-            widget_frame = Tkinter.Frame(main_frame)
-            widget_frame.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+            widget_frame = tkinter.Frame(main_frame)
+            widget_frame.pack(expand=tkinter.YES, fill=tkinter.BOTH)
             
             self.widget_frame = widget_frame
             cmd_list = [
@@ -491,18 +506,18 @@ class Grid3DCommands(Command):
                 cmd_list.append(('VolRen', 'VolRen.png', self.VolRen, 
                      '3D Texture-Based Volume Renderer'))
             else:
-                print "Volume Renderer is Disabled"
+                print("Volume Renderer is Disabled")
             #font LucidaTypewriter Marumoji, MiscFixed 14
             for name, icon, func, txt in cmd_list:
                 Icon = get_icon(icon, master=self.root)
                 self.Icons.append(Icon)
-                Checkbutton = Tkinter.Checkbutton(toolbar_frame, image=Icon,
+                Checkbutton = tkinter.Checkbutton(toolbar_frame, image=Icon,
                                                   indicatoron=0, command=func, 
                                                   bg='white')
                 Checkbutton.ballon = Pmw.Balloon()
                 Checkbutton.ballon.bind(Checkbutton, txt)
                 self.Checkbuttons[name] = Checkbutton
-                Checkbutton.pack(side=Tkinter.LEFT) 
+                Checkbutton.pack(side=tkinter.LEFT) 
 
             
             idf = self.vf.Grid3DAddRemove.ifd                
@@ -532,14 +547,14 @@ class Grid3DCommands(Command):
             self.VolRen_form.mf.config(bd =0)
             self.VolRen_form.mf.pack_forget()
             
-            self.add_remove_form.mf.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+            self.add_remove_form.mf.pack(expand=tkinter.YES, fill=tkinter.BOTH)
             self.current_obj = self.add_remove_form
             self.current_cmd = self.vf.Grid3DAddRemove
-            bottom_frame = Tkinter.Frame(main_frame)
-            bottom_frame.pack(fill=Tkinter.X)
-            self.close_b = Tkinter.Button(bottom_frame, text="  Dismiss  ", 
+            bottom_frame = tkinter.Frame(main_frame)
+            bottom_frame.pack(fill=tkinter.X)
+            self.close_b = tkinter.Button(bottom_frame, text="  Dismiss  ", 
                                           command=self.hide)
-            self.close_b.pack(expand=Tkinter.NO)
+            self.close_b.pack(expand=tkinter.NO)
             self.current_checkbutton = self.Checkbuttons['Add/Remove']
             self.current_checkbutton.toggle()
             self.vf.GUI.toolbarCheckbuttons['Grid3D']['Variable'].set(1)
@@ -586,7 +601,7 @@ class Grid3DCommands(Command):
         self.current_checkbutton.config(state='normal')
         self.current_checkbutton.toggle()
         self.current_obj.mf.pack_forget()
-        self.add_remove_form.mf.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+        self.add_remove_form.mf.pack(expand=tkinter.YES, fill=tkinter.BOTH)
         self.current_obj = self.add_remove_form
         self.Checkbuttons['Add/Remove'].config(state='disabled')
         self.current_checkbutton = self.Checkbuttons['Add/Remove']
@@ -602,7 +617,7 @@ class Grid3DCommands(Command):
         self.current_checkbutton.config(state='normal')
         self.current_checkbutton.toggle()
         self.current_obj.mf.pack_forget()
-        self.isocontour_form.mf.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+        self.isocontour_form.mf.pack(expand=tkinter.YES, fill=tkinter.BOTH)
         self.current_obj = self.isocontour_form
         self.Checkbuttons['Isocontour'].config(state='disabled')
         self.current_checkbutton = self.Checkbuttons['Isocontour']
@@ -619,7 +634,7 @@ class Grid3DCommands(Command):
         self.current_checkbutton.config(state='normal')
         self.current_checkbutton.toggle()
         self.current_obj.mf.pack_forget()
-        self.OrthoSlice_form.mf.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+        self.OrthoSlice_form.mf.pack(expand=tkinter.YES, fill=tkinter.BOTH)
         self.current_obj = self.OrthoSlice_form
         self.Checkbuttons['OrthoSlice'].config(state='disabled')
         self.current_checkbutton = self.Checkbuttons['OrthoSlice']
@@ -632,7 +647,7 @@ class Grid3DCommands(Command):
         self.current_checkbutton.config(state='normal')
         self.current_checkbutton.toggle()
         self.current_obj.mf.pack_forget()
-        self.VolRen_form.mf.pack(expand=Tkinter.YES, fill=Tkinter.BOTH)
+        self.VolRen_form.mf.pack(expand=tkinter.YES, fill=tkinter.BOTH)
         self.current_obj = self.VolRen_form
         self.Checkbuttons['VolRen'].config(state='disabled')
         self.current_checkbutton = self.Checkbuttons['VolRen']
@@ -640,7 +655,7 @@ class Grid3DCommands(Command):
         self.current_cmd.select()
         
     def save(self):
-        outFile = tkFileDialog.asksaveasfile(parent=self.root, 
+        outFile = tkinter.filedialog.asksaveasfile(parent=self.root, 
                                              filetypes=[('Grid settings', 
                                                          '*.pkl')], 
                                        title='Save Grid Control Panel File As:')
@@ -684,7 +699,7 @@ class Grid3DCommands(Command):
         self.vf.Grid3DCommands.PanedWindow.config(cursor='')
         
     def open(self):
-        inFile = tkFileDialog.askopenfile(parent=self.root, 
+        inFile = tkinter.filedialog.askopenfile(parent=self.root, 
                                            filetypes=[('Grid settings', 
                                                           '*.pkl'),
                                                         ('all', '*')  ], 
@@ -702,7 +717,7 @@ class Grid3DCommands(Command):
             grid.stepSize = gridSettings['stepSize']
             grid.geomContainer['Box'].visible = gridSettings['boxVisible']
             grid.master_geom.visible = gridSettings['masterVisible']
-            if gridSettings.has_key('isoBarNumber'):
+            if 'isoBarNumber' in gridSettings:
                 grid.isoBarNumber = gridSettings['isoBarNumber']
                 grid.isoBarTags = gridSettings['isoBarTags']
                 grid.isoLastColor = gridSettings['isoLastColor']
@@ -735,7 +750,7 @@ class Grid3DCommands(Command):
                                                  isovalue=grid.isoLastX[tag], 
                                                  invertNormals=invertNormals, 
                                           material=(r/255., g/255., b/255, 0.5))    
-            if gridSettings.has_key('_X_Slice'):
+            if '_X_Slice' in gridSettings:
                 grid._X_Slice  = gridSettings['_X_Slice']
                 grid._X_Vis  = gridSettings['_X_Vis']
                 geom = textured2DArray('OrthoSlice_X',
@@ -745,7 +760,7 @@ class Grid3DCommands(Command):
                 grid.geomContainer['OrthoSlice']['X'] = geom
                 data, vertices = grid.get2DOrthoSlice('x', grid._X_Slice)
                 geom.Set(vertices=vertices, array=data, visible=grid._X_Vis)
-            if gridSettings.has_key('_Y_Slice'):
+            if '_Y_Slice' in gridSettings:
                 grid._Y_Slice  = gridSettings['_Y_Slice']
                 grid._Y_Vis  = gridSettings['_Y_Vis']
                 geom = textured2DArray('OrthoSlice_Y',
@@ -755,7 +770,7 @@ class Grid3DCommands(Command):
                 grid.geomContainer['OrthoSlice']['Y'] = geom
                 data, vertices = grid.get2DOrthoSlice('y', grid._Y_Slice)
                 geom.Set(vertices=vertices, array=data, visible=grid._Y_Vis)
-            if gridSettings.has_key('_Z_Slice'):
+            if '_Z_Slice' in gridSettings:
                 grid._Z_Slice  = gridSettings['_Z_Slice']
                 grid._Z_Vis  = gridSettings['_Z_Vis']
                 geom = textured2DArray('OrthoSlice_Z',
@@ -765,7 +780,7 @@ class Grid3DCommands(Command):
                 grid.geomContainer['OrthoSlice']['Z'] = geom
                 data, vertices = grid.get2DOrthoSlice('z', grid._Z_Slice)
                 geom.Set(vertices=vertices, array=data, visible=grid._Z_Vis)
-            if gridSettings.has_key('LUTintervals_list'):
+            if 'LUTintervals_list' in gridSettings:
                 from Volume.Operators.MapData import MapGridData
                 datamap = {}
                 datamap['src_min'] = grid.mini
@@ -1115,7 +1130,7 @@ class AddRemove(Command):
 AddRemoveGUI = CommandGUI()
 AddRemoveGUI.addMenuCommand('menuRoot', 'Grid3D', 'Add/Remove...')
 """
-class IGraph(Tkinter.Frame):
+class IGraph(tkinter.Frame):
     """Extends Tkinter.Frame by adding a canvas with histogram and bars for 
     isocontouring.
     """
@@ -1132,25 +1147,25 @@ class IGraph(Tkinter.Frame):
         self.sig_tags = ['area', 'min_vol', 'max_vol', 'gradient']
         self.colors = ['red', 'green', 'blue', 'orange']#used in Plot Signature
         self.labelsBarFormat = labelsBarFormat
-        Tkinter.Frame.__init__(self, master)
+        tkinter.Frame.__init__(self, master)
         #Tkinter.Grid.config(self)
-        self.upperLabel = Tkinter.Label(self, text = "(0, 0)",width=20)
+        self.upperLabel = tkinter.Label(self, text = "(0, 0)",width=20)
         self.upperLabel.grid(row=0, column=0,sticky='we')
-        self.log_var = Tkinter.IntVar()
+        self.log_var = tkinter.IntVar()
         self.log_var.set(1)
-        self.sig_var = Tkinter.IntVar()
-        self.log_cb = Tkinter.Checkbutton(self, text='Logarithmic',anchor="w",
+        self.sig_var = tkinter.IntVar()
+        self.log_cb = tkinter.Checkbutton(self, text='Logarithmic',anchor="w",
                                           command = self.plot_histogram, 
                                           variable=self.log_var)
         self.log_cb.grid(row=0, column=1,sticky='e')
-        self.sig_cb = Tkinter.Checkbutton(self, text='Plot Signature',anchor="e",
+        self.sig_cb = tkinter.Checkbutton(self, text='Plot Signature',anchor="e",
                                           command = self.plot_signature, 
                                           variable=self.sig_var)
         self.sig_cb.grid(row=0, column=2,sticky='e')
 
         #self.canvasFrame = Tkinter.Frame(self)
         #self.canvasFrame.grid(row=1, column=0,columnspan=4, sticky='wens')
-        self.canvas = Tkinter.Canvas(self, width=self.width,cursor = 'cross',
+        self.canvas = tkinter.Canvas(self, width=self.width,cursor = 'cross',
                                       highlightbackground = 'blue',
                         height=height,   background='white')
         self.canvas.grid(row=1, column=0,columnspan=3)
@@ -1167,11 +1182,11 @@ class IGraph(Tkinter.Frame):
         self.maxEntry.grid(row=2, column=2, sticky='e')
         self.maxEntry._entryWidget.configure(width=8)
 
-        Tkinter.Widget.bind(self.canvas, "<1>", self.selectMoveBar)
-        Tkinter.Widget.bind(self.canvas, "<B1-Motion>", self.moveBar)
-        Tkinter.Widget.bind(self.canvas, "<Motion>", self.onMouseOver)
-        Tkinter.Widget.bind(self.canvas,'<Button-3>', self.button3)
-        Tkinter.Widget.bind(self.canvas,'<Shift-Button-1>', self.addBar)
+        tkinter.Widget.bind(self.canvas, "<1>", self.selectMoveBar)
+        tkinter.Widget.bind(self.canvas, "<B1-Motion>", self.moveBar)
+        tkinter.Widget.bind(self.canvas, "<Motion>", self.onMouseOver)
+        tkinter.Widget.bind(self.canvas,'<Button-3>', self.button3)
+        tkinter.Widget.bind(self.canvas,'<Shift-Button-1>', self.addBar)
         
         #Tkinter.Widget.bind(self.canvas, '<Double-Button-1>', self.showDejaVu)        
         #Tkinter.Widget.bind(self, '<Configure>', self.changeSize)        
@@ -1185,7 +1200,7 @@ class IGraph(Tkinter.Frame):
         self.canvas.create_rectangle(0,self.height - self.offset_y2,self.width, 
                          self.height - self.offset_y2+1,fill='gray68', tag='h_bar')
         
-        self.menu = Tkinter.Menu(self.master, title='Isocontour - Menu')
+        self.menu = tkinter.Menu(self.master, title='Isocontour - Menu')
         
         self.menu.add_command(label='Set IsoValue...',command=self.isoValueGUI) 
         self.menu.add_command(label='Color...',command=self.setColor) 
@@ -1332,13 +1347,13 @@ class IGraph(Tkinter.Frame):
         
     def update_a_b(self):
         if self.max_x == self.min_x:
-            print 'Error: min and max for the X axis are equal ', self.max_x
+            print('Error: min and max for the X axis are equal ', self.max_x)
             self.a_x = 10000000000000000000000000000000000000000
         else:
             self.a_x = self.width/float((self.max_x - self.min_x))
         self.b_x = -self.a_x*self.min_x
         if self.max_y == self.min_y:
-            print 'Error: min and max for the Y axis are equal ', self.max_y
+            print('Error: min and max for the Y axis are equal ', self.max_y)
             self.a_y = 10000000000000000000000000000000000000000
         else:
             self.a_y = (self.offset_y1 - self.height + self.offset_y2)/\
@@ -1377,7 +1392,7 @@ class IGraph(Tkinter.Frame):
         
     def addBar(self, event):
         if not self.cmd.grid:
-            tkMessageBox.showerror("Error: No grid selected", 
+            tkinter.messagebox.showerror("Error: No grid selected", 
                                    "Please select grid first.", parent=self)
             return
         self.isoBarNumber += 1
@@ -1396,7 +1411,7 @@ class IGraph(Tkinter.Frame):
         self.drawBar(event.x, self.isoBarNumber, color=hexcolor)
         self.canvas.lift(tag)    
         
-        if self.last_tag in self.cmd.grid.isoLastColor.keys():
+        if self.last_tag in list(self.cmd.grid.isoLastColor.keys()):
             self.canvas.itemconfig(self.last_tag + "cap", 
                                  fill=self.cmd.grid.isoLastColor[self.last_tag])  
         self.last_tag = tag      
@@ -1549,8 +1564,8 @@ class IGraph(Tkinter.Frame):
             return     
         try:
             val = float(self.isoValueDialog.get())
-        except Exception, inst:
-            print inst
+        except Exception :
+#            print(inst)
             self.isoValueDialog.deactivate()
             return    
         
@@ -1584,7 +1599,7 @@ class IGraph(Tkinter.Frame):
 
     def setTransparency(self):
         tag = self.selected_tag
-        root = Tkinter.Toplevel()
+        root = tkinter.Toplevel()
         root.title("Set Transparency - %s"%self.cmd.grid.master_geom.name)
         surfaceGeom = self.cmd.grid.geomContainer['IsoSurf'][tag]
         transparencySl = ExtendedSlider(root, label='  Transparency', minval=0.0,
@@ -1644,15 +1659,15 @@ gridname, material = (0.,0.,1.0,0.5), isovalue = None ,
         material : defaults to (0.,0.,1.0,0.5) - yellow half transparent\n
         name     : the name given to IndexedPolygons that represents isocontour.\n   
         invertNormals : defaults to False """
-        return apply(self.doitWrapper, (grid3D,), kw)
+        return self.doitWrapper(*(grid3D,), **kw)
 
     def doit(self, grid3D, material = None, isovalue = None , 
              name = None, invertNormals = False):
-        if type(grid3D) in types.StringTypes:
-            if self.vf.grids3D.has_key(grid3D):
+        if type(grid3D) is str:
+            if grid3D in self.vf.grids3D:
                 grid3D = self.vf.grids3D[grid3D]
             else:
-                print "ERROR!!! "+ grid3D + "is not in the self.vf.grids3D"
+                print("ERROR!!! "+ grid3D + "is not in the self.vf.grids3D")
         if isovalue == None:
             isovalue = float(grid3D.data[0][0][0])
         isoc = isocontour.getContour3d(self.iso_data, 0, 0, isovalue,
@@ -1679,7 +1694,7 @@ gridname, material = (0.,0.,1.0,0.5), isovalue = None ,
             g = IndexedPolygons(name)
             if self.vf.userpref['Sharp Color Boundaries for MSMS']['value'] == 'blur':
                 g.Set(inheritSharpColorBoundaries=False, sharpColorBoundaries=False,)
-            g.Set(culling='none')
+#            g.Set(culling='none') # broke blender 2.5
             g.Set(vertices=vert,vnormals=norm,faces=tri)
             if self.vf.hasGui : self.vf.GUI.VIEWER.AddObject(g, parent = grid3D.IsoSurf)
             grid3D.geomContainer['IsoSurf'][name] = g
@@ -1744,7 +1759,7 @@ gridname, material = (0.,0.,1.0,0.5), isovalue = None ,
         stepsize = Numeric.array(grid.stepSize).astype('f')
         data = grid.data
         if data.dtype != Numeric.Float32:
-            print 'converting %s from %s to float'%(grid_name,data.dtype)
+            print('converting %s from %s to float'%(grid_name,data.dtype))
             data = data.astype('f')
         self.newgrid3D = Numeric.ascontiguousarray(Numeric.reshape( Numeric.transpose(data),
                                               (1, 1)+tuple(data.shape) ) , data.dtype.char)
@@ -1772,22 +1787,22 @@ class OrthoSliceCommand(Command):
     def __init__(self, func=None):
         Command.__init__(self)
         self.ifd = InputFormDescr(title="OrthoSlice")
-        self.X_vis = Tkinter.BooleanVar()
+        self.X_vis = tkinter.BooleanVar()
         self.X_vis.set(1)
-        self.Y_vis = Tkinter.BooleanVar()
-        self.Z_vis = Tkinter.BooleanVar()
+        self.Y_vis = tkinter.BooleanVar()
+        self.Z_vis = tkinter.BooleanVar()
         self.grid = None
         
         self.ifd.append({'widgetType':Pmw.Group, 'name':'XGroup',
                          'container':{'XGroup':'w.interior()'},
-                         'wcfg':{'tag_pyclass':Tkinter.Checkbutton,
+                         'wcfg':{'tag_pyclass':tkinter.Checkbutton,
                                  'tag_text':'X Direction',
                                  'tag_command':self.createX,
                                  'tag_variable': self.X_vis, 
                                  },
                      'gridcfg':{'sticky':'we','columnspan':2} })
                 
-        self.ifd.append({'name':'X_Slice', 'widgetType':Tkinter.Scale,
+        self.ifd.append({'name':'X_Slice', 'widgetType':tkinter.Scale,
                          'parent':'XGroup',                         
                          'wcfg':{'orient':'horizontal','sliderrelief':'sunken',
                                  'sliderlength':10,'width':12,
@@ -1795,7 +1810,7 @@ class OrthoSliceCommand(Command):
                          'gridcfg':{'row':0, 'column':0,'sticky':'ew',
                                     'weight':10}})
 
-        self.ifd.append({'name':'X_ColorMap', 'widgetType':Tkinter.Button,
+        self.ifd.append({'name':'X_ColorMap', 'widgetType':tkinter.Button,
                          'parent':'XGroup',                         
                          'wcfg':{'text':'Colormap', 'command':self.X_ColorMap},
                          'gridcfg':{'row':0, 'column':1,'sticky':'se'}
@@ -1803,14 +1818,14 @@ class OrthoSliceCommand(Command):
 
         self.ifd.append({'widgetType':Pmw.Group, 'name':'YGroup',
                          'container':{'YGroup':'w.interior()'},
-                         'wcfg':{'tag_pyclass':Tkinter.Checkbutton,
+                         'wcfg':{'tag_pyclass':tkinter.Checkbutton,
                                  'tag_text':'Y Direction',
                                  'tag_command':self.createY,
                                  'tag_variable': self.Y_vis, 
                                  }, 
                          'gridcfg':{'sticky':'we','columnspan':2} })
                 
-        self.ifd.append({'name':'Y_Slice', 'widgetType':Tkinter.Scale,
+        self.ifd.append({'name':'Y_Slice', 'widgetType':tkinter.Scale,
                          'parent':'YGroup',                         
                          'wcfg':{'orient':'horizontal','sliderrelief':'sunken',
                                  'sliderlength':10,'width':12,
@@ -1818,7 +1833,7 @@ class OrthoSliceCommand(Command):
                          'gridcfg':{'row':0, 'column':0,'sticky':'ew',
                                     'weight':10} })
 
-        self.ifd.append({'name':'Y_ColorMap', 'widgetType':Tkinter.Button,
+        self.ifd.append({'name':'Y_ColorMap', 'widgetType':tkinter.Button,
                          'parent':'YGroup',                         
                          'wcfg':{'text':'Colormap', 'command':self.Y_ColorMap},
                          'gridcfg':{'row':0, 'column':1,'sticky':'se'}
@@ -1826,14 +1841,14 @@ class OrthoSliceCommand(Command):
 
         self.ifd.append({'widgetType':Pmw.Group, 'name':'ZGroup',
                          'container':{'ZGroup':'w.interior()'},
-                         'wcfg':{'tag_pyclass':Tkinter.Checkbutton,
+                         'wcfg':{'tag_pyclass':tkinter.Checkbutton,
                                  'tag_text':'Z Direction',
                                  'tag_command':self.createZ,
                                  'tag_variable': self.Z_vis, 
                                  },
                          'gridcfg':{'sticky':'we','columnspan':2} })
                 
-        self.ifd.append({'name':'Z_Slice', 'widgetType':Tkinter.Scale,
+        self.ifd.append({'name':'Z_Slice', 'widgetType':tkinter.Scale,
                          'parent':'ZGroup',                         
                          'wcfg':{'orient':'horizontal','sliderrelief':'sunken',
                                  'sliderlength':10,'width':12,
@@ -1841,13 +1856,14 @@ class OrthoSliceCommand(Command):
                          'gridcfg':{'row':0, 'column':0,'sticky':'ew',
                                     'weight':10} })
 
-        self.ifd.append({'name':'Z_ColorMap', 'widgetType':Tkinter.Button,
+        self.ifd.append({'name':'Z_ColorMap', 'widgetType':tkinter.Button,
                          'parent':'ZGroup',                         
                          'wcfg':{'text':'Colormap', 'command':self.Z_ColorMap},
                          'gridcfg':{'row':0, 'column':1,'sticky':'se'}
                         })
 
     def X_ColorMap(self):
+        from DejaVu.ColormapGui import ColorMapGUI
         if not self.X_vis.get():
             return
         elif self.grid:
@@ -1868,7 +1884,7 @@ class OrthoSliceCommand(Command):
             self.X_ColorMapGUI.master.protocol('WM_DELETE_WINDOW', dismissXCmap)
         else:
             parent = self.vf.Grid3DCommands.root
-            tkMessageBox.showerror("Error: No grid selected", 
+            tkinter.messagebox.showerror("Error: No grid selected", 
                                    "Please add and select grid first.", parent=parent)
                 
     def X_ColorMap_cb(self, colorMap):
@@ -1971,6 +1987,7 @@ class OrthoSliceCommand(Command):
         self.vf.GUI.VIEWER.Redraw()
 
     def Y_ColorMap(self):
+        from DejaVu.ColormapGui import ColorMapGUI
         if not self.Y_vis.get():
             return
         elif self.grid:
@@ -1991,7 +2008,7 @@ class OrthoSliceCommand(Command):
             self.Y_ColorMapGUI.master.protocol('WM_DELETE_WINDOW', dismissYCmap)
         else:
             parent = self.vf.Grid3DCommands.root
-            tkMessageBox.showerror("Error: No grid selected", 
+            tkinter.messagebox.showerror("Error: No grid selected", 
                                    "Please add and select grid first.", parent=parent)
             
     def Y_ColorMap_cb(self, colorMap):
@@ -2045,7 +2062,8 @@ class OrthoSliceCommand(Command):
             self.grid._Z_Vis = False
         self.vf.GUI.VIEWER.Redraw()
 
-    def Z_ColorMap(self):       
+    def Z_ColorMap(self):    
+        from DejaVu.ColormapGui import ColorMapGUI   
         if not self.Z_vis.get():
             return
         elif self.grid:
@@ -2066,7 +2084,7 @@ class OrthoSliceCommand(Command):
             self.Z_ColorMapGUI.master.protocol('WM_DELETE_WINDOW', dismissZCmap)
         else:
             parent = self.vf.Grid3DCommands.root
-            tkMessageBox.showerror("Error: No grid selected", 
+            tkinter.messagebox.showerror("Error: No grid selected", 
                                    "Please add and select grid first.", parent=parent)
             
     def Z_ColorMap_cb(self, colorMap):
@@ -2078,14 +2096,14 @@ class OrthoSliceCommand(Command):
             self.vf.grids3D={}
 
     def __call__(self, grid3D, **kw):
-        return apply(self.doitWrapper, (grid3D,), kw)
+        return self.doitWrapper(*(grid3D,), **kw)
 
     def doit(self, grid3D, name = None, axis = 'x', sliceNumber = 0):
-        if type(grid3D) in types.StringTypes:
-            if self.vf.grids3D.has_key(grid3D):
+        if type(grid3D) in str:
+            if grid3D in self.vf.grids3D:
                 grid3D = self.vf.grids3D[grid3D]
             else:
-                print "ERROR!!! "+ grid3D + "is not in the self.vf.grids3D"
+                print("ERROR!!! "+ grid3D + "is not in the self.vf.grids3D")
 
         if not name:
             name = "Grid3D_Ortho_%s_%d"%(axis,sliceNumber)
@@ -2162,6 +2180,7 @@ from mglutil.gui.BasicWidgets.Tk.tablemaker import Colormap, TableManager, LUT
 from Volume.Operators.MapData import MapGridData
 globalFont = (ensureFontCase('helvetica'), 10)
 from math import log10
+
 class myLUT(LUT):
     """Extend mglutil.gui.BasicWidgets.Tk.tablemaker.LUT; removes label to top
     """
@@ -2178,14 +2197,14 @@ class myLUT(LUT):
         assert self.num_of_entries > 0
         self.font = globalFont
         
-        self.canvas = Tkinter.Canvas(master,width = width, height=height,
-                             relief = Tkinter.FLAT, highlightbackground='blue',
+        self.canvas = tkinter.Canvas(master,width = width, height=height,
+                             relief = tkinter.FLAT, highlightbackground='blue',
                              borderwidth = 2)
         self.width = width
         self.height = height
         
         c = self.canvas
-        c.grid(row=grid_row, sticky=Tkinter.W)
+        c.grid(row=grid_row, sticky=tkinter.W)
         width = float(c.cget('width')) # 461.0
         height = float(c.cget('height'))#106.0
         diff = 15
@@ -2275,14 +2294,14 @@ class myLUT(LUT):
             
     def update_a_b(self):
         if self.max_x == self.min_x:
-            print 'Error: min and max for the X axis are equal ', self.max_x
+            print('Error: min and max for the X axis are equal ', self.max_x)
             self.a_x = 10000000000000000000000000000000000000000
         else:
             self.a_x = (self.right - self.left -1 )/(self.max_x - self.min_x)
         self.b_x = -self.a_x*self.min_x + self.left + 1
         bottom = self.bott 
         if self.max_y == self.min_y:
-            print 'Error: min and max for the Y axis are equal ', self.max_y
+            print('Error: min and max for the Y axis are equal ', self.max_y)
             self.a_y = 10000000000000000000000000000000000000000
         else:
             self.a_y = (-bottom + self.top)/(self.max_y - self.min_y)
@@ -2308,12 +2327,12 @@ class myTF(TableManager):
         #place menu buttons
         #mbutton = Tkinter.Menubutton(self.master, text='VolRender - Menu')
         #mbutton.pack(side=Tkinter.LEFT)
-        self.menu = Tkinter.Menu(self.master, title='VolRender - Menu')
+        self.menu = tkinter.Menu(self.master, title='VolRender - Menu')
                 
         self.menu.add_command(label="Set Color", command=self.showColormap)
         self.menu.add_command(label="Reset", command=self.reset)
         self.menu.add_command(label="Hide", command=self.hideShow)
-        self.menu.drawchoices= Tkinter.Menu(self.menu)
+        self.menu.drawchoices= tkinter.Menu(self.menu)
         self.menu.add_cascade(label="Draw Function...",
                                  menu=self.menu.drawchoices)
         self.menu.drawchoices.add_command(label ="Ramp",
@@ -2322,7 +2341,7 @@ class myTF(TableManager):
                       command=(lambda self=self, num=1: self.draw_ramp(num)))
         self.menu.add_command(label="Flip Function",
                                  command = self.flip_function_cb)
-        self.menu.sizechoices= Tkinter.Menu(self.menu)
+        self.menu.sizechoices= tkinter.Menu(self.menu)
         self.menu.add_command(label="Set Dots Size",
                                  command=(lambda self=self,
                                           st="dot": self.set_dotsize_cb(st)))
@@ -2342,21 +2361,21 @@ class myTF(TableManager):
         self.menu.add_command(label="Save LUT (.lut)",
                                  command=self.saveLUT)
         self.menu.add_command(label='Save TF (.clu)', command=self.saveTF)
-        self.continVar = Tkinter.IntVar()
+        self.continVar = tkinter.IntVar()
         self.continVar.set(1)
         font = self.font = globalFont
         self.set_font(self.menu, font)
         self.intervals_list = [(self.xminval, self.xmaxval),]
         self.parent_interval = (self.xminval, self.xmaxval)
         self.create_splitDialog()
-        self.colormapWin = Tkinter.Toplevel()
+        self.colormapWin = tkinter.Toplevel()
         self.colormapWin.title('Color - VolRender')
         self.colormapWin.protocol('WM_DELETE_WINDOW', self.closeRGB)
         iconpath = 'mglutil.gui.BasicWidgets.Tk'    
         file = findFilePath('icons', iconpath)
         file = os.path.join(file,'colors.gif')
         self.colormap = Colormap(self.colormapWin, file=file)
-        Tkinter.Button(self.colormapWin,text="Dismiss", 
+        tkinter.Button(self.colormapWin,text="Dismiss", 
                        command=self.closeRGB).grid(columnspan=2)
         self.colormapWin.withdraw()
         self.colormap.callbacks = [self.set_hsv]        
@@ -2369,9 +2388,9 @@ class myTF(TableManager):
         
         self.create_splitDialog()
         #place Lookup Table editor on the form
-        self.f1 = Tkinter.Frame(self.master)
+        self.f1 = tkinter.Frame(self.master)
         self.f1.pack()
-        self.log_var = Tkinter.IntVar()
+        self.log_var = tkinter.IntVar()
         self.log_var.set(1)
         
         lut = myLUT(self.f1, xmaxval=self.xmaxval, xminval=xminval, grid_row=1,
@@ -2412,7 +2431,7 @@ class myTF(TableManager):
                                 dropdown=1, selectioncommand=self.setMax)
         self.maxEntry.pack(side='right')
         self.maxEntry._entryWidget.configure(width=8)
-        self.cVar = Tkinter.IntVar()
+        self.cVar = tkinter.IntVar()
         radioS = Pmw.RadioSelect(self.master, command=self.colorGUI)
         
         radioS.pack(side="top", fill = 'x',)
@@ -2435,7 +2454,7 @@ class myTF(TableManager):
         name = self.cmd.vf.Grid3DCommands.get_grid_name()
         if not name:
             parent = self.cmd.vf.Grid3DCommands.root
-            tkMessageBox.showerror("Error: No grid selected", 
+            tkinter.messagebox.showerror("Error: No grid selected", 
                                    "Please add and select grid first.", parent=parent)
             return
         
@@ -2451,6 +2470,7 @@ class myTF(TableManager):
             name += "-VolRender Colormap"
             self.ColorMapGUI.master.title(name)
         else:
+            from DejaVu.ColormapGui import ColorMapGUI
             ramp = RGBARamp()
             ramp[:,3] = Numeric.arange(0,0.25,1./(4*256.),'f')
             name += "-VolRender Colormap"
@@ -2597,7 +2617,7 @@ class myTF(TableManager):
     def selected(self, event):
         """Activates selected canvas widget."""
         curr_widget = event.widget
-        if not isinstance(curr_widget,Tkinter.Frame):
+        if not isinstance(curr_widget,tkinter.Frame):
             self.make_selected(curr_widget)
         self.menu.unpost()
         self.balloon.unbind(self.master)
@@ -2629,7 +2649,7 @@ class myTF(TableManager):
         try:
             ind = self.intervals_list.index(parent_interval)
         except ValueError:
-            print 'ValueError: interval',parent_interval,'is not in self.intervals_list'
+            print('ValueError: interval',parent_interval,'is not in self.intervals_list')
             return
         if entry_minval == parent_interval[0]:
             intervals = [(entry_minval, entry_maxval),
@@ -2791,11 +2811,11 @@ class myTF(TableManager):
                 if self.load_file_old(file):
                     return
                 else:
-                    print warning
+                    print(warning)
                 return
         else:
             of.close()
-            print warning
+            print(warning)
             return
         ymaxval = 0
         while(1):
@@ -2842,7 +2862,7 @@ class myTF(TableManager):
                 else:
                     self.xmaxval = xmaxval
             else:
-                print "WARNING: number of LUT entries in %s is %d, current number of LUT entries is %d." % (file, xmaxval+1, self.xmaxval+1)
+                print("WARNING: number of LUT entries in %s is %d, current number of LUT entries is %d." % (file, xmaxval+1, self.xmaxval+1))
 
         shapes = []
         values = []
@@ -2891,7 +2911,7 @@ class myTF(TableManager):
             self.canvas_list.append(lut.canvas)
             if d != 1 :
                 lut.calculate_points(values[i],
-                                     map(lambda x: x/d, alphas[i]))
+                                     [x/d for x in alphas[i]])
             else:
                 lut.calculate_points(values[i], alphas[i])
             lut.shapes = shapes[i]
@@ -2927,8 +2947,9 @@ class VolRenCommand(Command):
     def __init__(self, func=None):
         Command.__init__(self)
         self.grid = None
-        self.ifd = InputFormDescr(title="VolRen")
-        self.ifd.append({'name':'VolRen',
+        if self.vf.hasGui :
+            self.ifd = InputFormDescr(title="VolRen")
+            self.ifd.append({'name':'VolRen',
                     'widgetType':myTF,
                     'wcfg':{'alphaCallback':self.alpha_cb,
                             'colorCallback':self.color_cb,
@@ -2960,29 +2981,33 @@ class VolRenCommand(Command):
     def onAddCmdToViewer(self):
         if not hasattr(self.vf, 'grids3D'):
             self.vf.grids3D={}
-        self.ifd[0]['widgetType'].cmd = self
+        if self.vf.hasGui :
+            self.ifd[0]['widgetType'].cmd = self
         
     def __call__(self, grid3D, **kw):
-        return apply(self.doitWrapper, (grid3D,), kw)
+        return self.doitWrapper(*(grid3D,), **kw)
 
     def doit(self, grid3D, name = None):
-        if type(grid3D) in types.StringTypes:
-            if self.vf.grids3D.has_key(grid3D):
+        if type(grid3D) in str:
+            if grid3D in self.vf.grids3D:
                 grid3D = self.vf.grids3D[grid3D]
             else:
-                print "ERROR!!! "+ grid3D + "is not in the self.vf.grids3D"
-        self.vf.GUI.VIEWER.OneRedraw()
+                print("ERROR!!! "+ grid3D + "is not in the self.vf.grids3D")
+        if self.vf.hasGui :
+            self.vf.GUI.VIEWER.OneRedraw()
     
     def select(self):
         grid_name = self.vf.Grid3DCommands.get_grid_name()
-        if not grid_name:
-            self.vf.Grid3DCommands.root.configure(cursor='')
-            self.vf.Grid3DCommands.PanedWindow.config(cursor='')
-            self.grid = None
-            return
+        if self.vf.hasGui :
+            if not grid_name:
+                self.vf.Grid3DCommands.root.configure(cursor='')
+                self.vf.Grid3DCommands.PanedWindow.config(cursor='')
+                self.grid = None
+                return
         grid = self.vf.grids3D[grid_name]
-        widget = self.ifd.entryByName['VolRen']['widget']
-        widget.merge_function()
+        if self.vf.hasGui :
+            widget = self.ifd.entryByName['VolRen']['widget']
+            widget.merge_function()
             
         if not hasattr(grid,'volRenGrid'):
             datamap = {}
@@ -3007,39 +3032,46 @@ class VolRenCommand(Command):
             grid.volRenGrid = newgrid
             geom = UTVolRenGeom('VolRender')
             grid.geomContainer['VolRender'] = geom
-            self.vf.GUI.VIEWER.AddObject(geom, parent=grid.master_geom)
+            if self.vf.hasGui :
+                self.vf.GUI.VIEWER.AddObject(geom, parent=grid.master_geom)
             geom.AddGrid3D(newgrid)
-            self.vf.GUI.VIEWER.OneRedraw()
+            if self.vf.hasGui :
+                self.vf.GUI.VIEWER.OneRedraw()
             grid.LUT_data = LUT_data()
             self.grid = grid
-            widget.lut_list[0].draw_initshape()
-            widget.applylut_cb()                
+            if self.vf.hasGui :
+                widget.lut_list[0].draw_initshape()
+                widget.applylut_cb()                
         else:
-            self.saveLUT_Dict()
-            widget.intervals_list = grid.LUT_data.intervals_list
-            widget.lut_list[0].shapes = grid.LUT_data.shapes
-            widget.lut_list[0].values = values = grid.LUT_data.values
-            widget.lut_list[0].color_arr = grid.LUT_data.color_arr
-            widget.lut_list[0].alpha_arr = grid.LUT_data.alpha_arr
+            if self.vf.hasGui :
+                self.saveLUT_Dict()
+                widget.intervals_list = grid.LUT_data.intervals_list
+                widget.lut_list[0].shapes = grid.LUT_data.shapes
+                widget.lut_list[0].values = values = grid.LUT_data.values
+                widget.lut_list[0].color_arr = grid.LUT_data.color_arr
+                widget.lut_list[0].alpha_arr = grid.LUT_data.alpha_arr
             self.grid = grid
             alphas = Numeric.take(grid.LUT_data.alpha_arr,values)
-            widget.lut_list[0].calculate_points(values,alphas)
-            #widget.lut_list[0].calculate_alphas()
-            widget.lut_list[0].redraw(redrawIsoVals=False)
+            if self.vf.hasGui :
+                widget.lut_list[0].calculate_points(values,alphas)
+                #widget.lut_list[0].calculate_alphas()
+                widget.lut_list[0].redraw(redrawIsoVals=False)
         if not hasattr(grid,'Vhist'):            
             bound = None #this is used to set the limits on the histogram
             if grid_name.endswith('.map'):
                 if grid.mini < 0:
                     bound = [grid.mini,-grid.mini]
-            Vhist = numpy.histogram(grid.data.copy().flat, bins=widget.lut_list[0].width+100)
-            grid.Vhist = Vhist
+            if self.vf.hasGui :
+                Vhist = numpy.histogram(grid.data.copy().flat, bins=widget.lut_list[0].width+100)
+                grid.Vhist = Vhist
 
         #widget.lut_list[0].min_x = grid.hist.min
         #widget.lut_list[0].max_x = grid.hist.max        
-        widget.plot_histogram()            
+        if self.vf.hasGui :
+            widget.plot_histogram()            
 
-        self.vf.Grid3DCommands.root.configure(cursor='')  
-        self.vf.Grid3DCommands.PanedWindow.config(cursor='')   
+            self.vf.Grid3DCommands.root.configure(cursor='')  
+            self.vf.Grid3DCommands.PanedWindow.config(cursor='')   
 
 commandList = [
     {'name':'Grid3DReadAny','cmd':readAnyGrid(),'gui':None},

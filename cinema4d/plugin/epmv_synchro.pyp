@@ -8,16 +8,17 @@ import ePMV.cinema4d as epmv
 import os
 
 # be sure to use a unique ID obtained from www.plugincafe.com
-PLUGIN_ID = 102374500
+PLUGIN_ID = 1027093
 
 class epmvSynchro(plugins.TagData):
 
     #optimize_method_control = True
-
+    
     def __init__(self):
         #self.optimize_method_control = True
         print "__init__"
-        
+        self.prevFrame = None
+		
     def Init(self, node):
         """get Pmv"""
         print "init"        
@@ -45,16 +46,24 @@ class epmvSynchro(plugins.TagData):
         #    vp = doc.GetActiveBaseDraw() 
         #    self.epmv.helper.updateImage(self.mv,viewport = vp)
         if self.epmv.synchro_timeline :
+            self.epmv.helper.doc = doc
+			#work realtime but not in image viewer rendering...
+            mol = self.epmv.gui.current_mol
+            disp = self.epmv.mv.molDispl[mol.name]
             traj = self.epmv.gui.current_traj
             t=c4d.BaseTime()
             fps = doc.GetFps()
             #getCurrent time
             frame=doc.GetTime().GetFrame(fps)
             st,ft=self.epmv.synchro_ratio
-            if (frame % ft) == 0:   
+            doit = True
+            if (self.prevFrame != None) :
+                if (frame == self.prevFrame) :
+                    doit = False
+            if (frame % ft) == 0 and doit:   
                 step = frame * st
                 self.epmv.updateData(traj,step)
-#                self.epmv.gui.updateViewer()
+            self.prevFrame = frame
         else :
             self.epmv.updateCoordFromObj(sel,debug=True)
         #this update should recognise the displayed object and update consequently

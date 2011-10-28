@@ -179,7 +179,7 @@ helper.triangulate(c4dorganlle)
 
 faces = c4dorganlle.get_polygons()
 c4dvertices = c4dorganlle.get_points()
-vertices = map(helper.vc4d,c4dvertices)
+vertices = list(map(helper.vc4d,c4dvertices))
 vnormals = helper.GetFaces(c4dorganlle)
 o1 = Organelle(vertices, faces, vnormals)
 h1.addOrganelle(o1)
@@ -192,18 +192,18 @@ x,y,z = bb[0]
 bb[0] = [x-pad, y-pad, z-pad]
 x,y,z = bb[1]
 bb[1] = [x+pad, y+pad, z+pad]
-print 'Bounding box with padding', h1.boundingBox
+print('Bounding box with padding', h1.boundingBox)
 
 
 h1.setMinMaxProteinSize()
-print 'Cyto', rCyto.getMinMaxProteinSize()
-print 'Surf', rSurf1.getMinMaxProteinSize()
-print 'Matrix', rMatrix1.getMinMaxProteinSize()
+print('Cyto', rCyto.getMinMaxProteinSize())
+print('Surf', rSurf1.getMinMaxProteinSize())
+print('Matrix', rMatrix1.getMinMaxProteinSize())
 #print 'o1', o1.getMinMaxProteinSize()
-print 'smallest', h1.smallestProteinSize
-print 'largest', h1.largestProteinSize
+print('smallest', h1.smallestProteinSize)
+print('largest', h1.largestProteinSize)
 
-execfile(plgDir+'/extension/testAF/c_displayPreFill.py')
+exec(compile(open(plgDir+'/extension/testAF/c_displayPreFill.py').read(), plgDir+'/extension/testAF/c_displayPreFill.py', 'exec'))
 from Pmv.hostappInterface.cinema4d import helperC4D as helper
 
 
@@ -214,7 +214,7 @@ def FILL(h):
     bb=helper.getCornerPointCube(box)
     h.buildGrid(boundingBox=bb)
     h.fill3(seedNum=0)
-    execfile(plgDir+'/extension/testAF/c_displayFill.py')
+    exec(compile(open(plgDir+'/extension/testAF/c_displayFill.py').read(), plgDir+'/extension/testAF/c_displayFill.py', 'exec'))
     
     
 #FILL(h1,box)

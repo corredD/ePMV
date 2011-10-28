@@ -109,12 +109,12 @@ afviewer.doSpheres = False
 afviewer.quality = 1 #lowest quality for sphere and cylinder
 
 h1.setMinMaxProteinSize()
-print 'Cyto', rCyto.getMinMaxProteinSize()
-print 'Surf', rSurf1.getMinMaxProteinSize()
-print 'Matrix', rMatrix1.getMinMaxProteinSize()
+print('Cyto', rCyto.getMinMaxProteinSize())
+print('Surf', rSurf1.getMinMaxProteinSize())
+print('Matrix', rMatrix1.getMinMaxProteinSize())
 #print 'o1', o1.getMinMaxProteinSize()
-print 'smallest', h1.smallestProteinSize
-print 'largest', h1.largestProteinSize
+print('smallest', h1.smallestProteinSize)
+print('largest', h1.largestProteinSize)
 
 pad = 100.
 afviewer.SetHistoVol(h1,pad,display=False)
@@ -130,9 +130,9 @@ def FILL(h):
     t1 = time()
     h.fill3(seedNum=0)
     t2 = time()
-    print 'time to fill', t2-t1
+    print('time to fill', t2-t1)
     afviewer.displayFill()
-    print 'time to display', time()-t2
+    print('time to display', time()-t2)
     
 #FILL(h1)
 #afviewer.displayOrganellesPoints()

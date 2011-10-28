@@ -8,7 +8,7 @@
 #############################################################################
 
 from ePMV.epmvAdaptor import epmvAdaptor
-from pyubic.autodeskmaya import helperMaya
+from upy.autodeskmaya import mayaHelper
 import maya
 from maya import OpenMaya
 from maya import OpenMayaAnim as oma
@@ -71,7 +71,7 @@ class mayaAdaptor(epmvAdaptor):
     
     def __init__(self,gui=False,mv=None,debug=0):
         self.soft = 'maya'
-        self.helper = helperMaya.mayaHelper()
+        self.helper = mayaHelper.mayaHelper()
         epmvAdaptor.__init__(self,mv,host='maya',debug=debug)
         #scene and object helper function
 #        self._getCurrentScene = mayaHelper.getCurrentScene
@@ -159,23 +159,12 @@ class mayaAdaptor(epmvAdaptor):
             self.helper.addObjectToScene(self.helper.getCurrentScene(),
                                          baseparent,parent=parent)
             self.helper.toggleDisplay(baseparent,False)
-        for atn in  self.AtmRadi.keys():
-#            atparent=self.helper.getObject(name+"_"+atn,doit=True)
+        for atn in  list(self.AtmRadi.keys()):
             rad=float(self.AtmRadi[atn])
-#            if atparent is None :
-#                atparent=self.helper.newEmpty(name+"_"+atn)
-#                self.helper.addObjectToScene(self.helper.getCurrentScene(),
-#                                             atparent,parent=baseparent)
             iMe[atn]=self.helper.getObject(name+'_'+atn,doit=True)
             if not iMe[atn]:
-                pobj,iMe[atn]=self.helper.Sphere(name+'_'+atn,mat = atn,type=typeSp)
-#                iMe[atn],node=cmds.sphere(name=name+"Atom_"+atn,r=rad)#float(scaleFactor) ) #nurbsphere
-                self.helper.addObjectToScene(self.helper.getCurrentScene(),
-                                             iMe[atn],parent=baseparent)
-                #iMe[atn]=atparent
-#                self.assignMaterial(atn, iMe[atn])
-                #cmds.sets (nodeName, e=True, fe='initialShadingGroup')
-    #        toggleDisplay(iMe[atn],False)
+                iMe[atn],me=self.helper.Sphere(name+'_'+atn,mat = atn,
+                                                type=typeSp,parent=baseparent)
         return iMe
 
 
@@ -200,7 +189,7 @@ class mayaAdaptor(epmvAdaptor):
         hiera = 'default'        
         mol = x[0].getParentOfType(Protein)        
         #parent=getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_balls"])  
-        parent=self.findatmParentHierarchie(x[0],n,hiera)
+        #parent=self.findatmParentHierarchie(x[0],n,hiera)
         if pb :
             self.helper.resetProgressBar()
         for c in mol.chains:
@@ -211,12 +200,12 @@ class mayaAdaptor(epmvAdaptor):
             atoms = c.residues.atoms
 #            if pb != None  : 
 #                maya.cmds.progressBar(maya.pb, edit=True, maxValue=len(atoms.coords),progress=0)
-            parent=self.findatmParentHierarchie(atoms[0],n,hiera) 
-            hierarchy=atoms[0].full_name().split(":")   
-            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_"+nn])
+            #parent=self.findatmParentHierarchie(atoms[0],n,hiera) 
+            #hierarchy=atoms[0].full_name().split(":")   
+            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn])
             def oneinstance(at,pb=False):
                 atN=at.name
-                if atN[0] not in self.AtmRadi.keys(): atN="A"
+                if atN[0] not in list(self.AtmRadi.keys()): atN="A"
                 fullname = self.atomNameRule(at,n)
                 atC=at.coords
                 sph = self.helper.newMInstance(fullname,iMe[atN[0]],location=atC,parent = parent)
@@ -239,6 +228,7 @@ class mayaAdaptor(epmvAdaptor):
                 objToColor = self.helper.getObject(geom)
             else :
                 objToColor = geom        
+        
         self.helper.changeColor(objToColor,colors,perVertex=perVertex,
                          perObjectmat=perObjectmat,pb=pb)
 
@@ -250,6 +240,26 @@ class mayaAdaptor(epmvAdaptor):
         object,bones=self.helper.armature(name, c,scn=scn,root=root)
         return object,bones
 
+    def _editLines(self,molecules,atomSets):
+        scn = self.helper.getCurrentScene()
+        for mol, atms in zip(molecules, atomSets):
+            for ch in mol.chains:
+                parent = self.helper.getObject(ch.full_name())
+                lines = self.helper.getObject(ch.full_name()+'_line')
+                bonds, atnobnd = ch.residues.atoms.bonds
+                indices = [(x.atom1._bndIndex_,
+                                         x.atom2._bndIndex_) for x in bonds]                
+                if lines == None :            
+                    lines = self.helper.createLines(ch.full_name()+'_line',
+                                                     ch.residues.atoms.coords,
+                                                     None,indices)
+                    self.helper.addObjectToScene(scn,lines[0],parent=arr)
+                    mol.geomContainer.geoms[ch.full_name()+'_line'] = lines
+                    #display using AtomArray
+                else : #need to update
+#                    self.helper._updateLines(lines, chains=ch)
+                    self.helper.updatePoly(lines,vertices=ch.residues.atoms.coords,faces=indices)
+    
 #    def atomNameRule(self,atom,prefix):
 #        return prefix+"_"+atom.full_name().replace(":","_").replace(" ","_").replace("'","b")+"n"+str(atom.number)
 #
@@ -279,7 +289,7 @@ class mayaAdaptor(epmvAdaptor):
         vt = []
         bones = mol.geomContainer.geoms["armature"][1]
         vt = [self.helper.ToVec(self.helper.getJointPosition(j)) for j in bones]
-        print len(vt),vt[0]
+        print(len(vt),vt[0])
         return vt
     
     def updateMolAtomCoordSpline(self,mol,index=-1):

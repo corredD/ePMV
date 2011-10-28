@@ -8,7 +8,7 @@ Created on Fri Jun  4 20:02:15 2010
 from modeller.optimizers.actions import action
 from Pmv.moleculeViewer import EditAtomsEvent
 import modeller
-import Pmv.hostappInterface as epmv
+import ePMV as epmv
 #event = EditAtomsEvent('coords', self.pmvModel.allAtoms)
 
 def setupMDL(env,name):
@@ -36,11 +36,11 @@ def minimizeMDL(mol,maxit=1000,store=True):
     mdl.restraints.make(atmsel, restraint_type='stereo', spline_on_site=False)
     #mdl.restraints.write(file=mpath+mname+'.rsr')
     mpdf = atmsel.energy()
-    print "before optmimise"
+    print("before optmimise")
     # Create optimizer objects and set defaults for all further optimizations
     cg = modeller.optimizers.conjugate_gradients(output='REPORT')
     mol.pmvaction.last = 10000
-    print "optimise"
+    print("optimise")
     mol.pmvaction.store = store#self.pd.GetBool(self.pd.CHECKBOXS['store']['id'])
     cg.optimize(atmsel, max_iterations=maxit, actions=mol.pmvaction)#actions.trace(5, trcfil))
     del cg
@@ -54,11 +54,11 @@ def dynamicMDL(mol,temp=300,maxit=1000,store=True):
     mdl.restraints.make(atmsel, restraint_type='stereo', spline_on_site=False)
     #mdl.restraints.write(file=mpath+mname+'.rsr')
     mpdf = atmsel.energy()
-    print "before optmimise"
+    print("before optmimise")
     md = modeller.optimizers.molecular_dynamics(output='REPORT')
     mol.pmvaction.last = 10000
     mol.pmvaction.store = store
-    print "optimise"
+    print("optimise")
     md.optimize(atmsel, temperature=temp, max_iterations=int(maxit),actions=mol.pmvaction)
     del md
     return True
@@ -68,12 +68,12 @@ class pmvAction(action):
     #'__doc__', '__getattribute__', '__hash__', '__init__', '__module__',
     #'__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__',
     #'__str__', '__weakref__', 'first', 'last', 'skip']
-    def __init__(self,skip, first, last,iconf=1,pmvModel=None,mv=None):
+    def __init__(self,skip, first, last,iconf=1,pmvModel=None,mv=None,epmv=None):
         action.__init__(self,skip, first, last)
         self.idConf=iconf
         self.pmvModel=pmvModel
-        self.epmv = mv
-        self.mv = mv.mv
+        self.epmv = epmv
+        self.mv = mv
         #if storing mode, we create a conf every x step
         self.store = False
         self.cg=None
@@ -120,14 +120,14 @@ class pmvAction(action):
         mdl.restraints.make(self.atmsel, restraint_type='stereo', spline_on_site=False)
         #mdl.restraints.write(file=mpath+mname+'.rsr')
         self.mpdf = self.atmsel.energy()
-        print "before optmimise"
+        print("before optmimise")
         # Create optimizer objects and set defaults for all further optimizations
         if self.rtType == "mini" :
             self.cg = modeller.optimizers.conjugate_gradients(output='REPORT')
         elif self.rtType == "md" :
             self.cg = modeller.optimizers.molecular_dynamics(output='REPORT')
         self.last = 10000
-        print "optimise"
+        print("optimise")
         
     def modellerOptimize(self,maxit,temp=300):
         if self.cg is None :
@@ -145,18 +145,27 @@ class pmvAction(action):
         #opt is the optimizer object either cg, md etc...
         #opt.atmsel give acces to the current data model 
         #opt.current_e give acces to the current energy    
+        #print "action"
         indices,model = opt.atmsel.get_atom_indices()
         self.updatePmvCoord(self.idConf,model)
         event = EditAtomsEvent('coords', self.pmvModel.allAtoms)
         self.mv.dispatchEvent(event)
         #should we update other geom? at least one chain to test
-        self.epmv.helper.updatePoly(self.pmvModel.name+":"+self.pmvModel.chains[0].name+"_cloud",
-                                    vertices=self.pmvModel.chains[0].residues.atoms.coords)
+        if self.epmv is not None:
+            self.epmv.updateDataGeom(self.pmvModel)
+        #self.epmv.helper.updatePoly(self.pmvModel.name+":"+self.pmvModel.chains[0].name+"_cloud",
+        #                            vertices=self.pmvModel.chains[0].residues.atoms.coords)
         #try tu update viewer ?
         if self.redraw:
+            #print "redraw",self.mv.hasGui
             if self.mv.hasGui :
-                self.mv.GUI.VIEWER.Redraw()
-            self.epmv.helper.update()
+                #print "update"
+                #self.mv.GUI.VIEWER.update()
+                self.mv.GUI.VIEWER.OneRedraw()
+                self.mv.GUI.VIEWER.update()
+                #self.GUI.ROOT.after(5, self.mv.GUI.VIEWER.OneRedraw)
+            if self.epmv is not None:
+                self.epmv.helper.update()
         if self.store :
             #add a conformation for modeller
             self.pmvModel.allAtoms.addConformation(self.pmvModel.allAtoms.coords[:])

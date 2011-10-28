@@ -1,14 +1,13 @@
 """
 Name: 'Python Molecular Viewer GUI'
 Cinema4D: 12
-Py4D:1.11
 """
 
 #this should be part of the adaptor?
 __author__ = "Ludovic Autin, Graham Johnson"
 __url__ = ["http://mgldev.scripps.edu/projects/ePMV/wiki/index.php/Main_Page",
            'http://mgldev.scripps.edu/projects/ePMV/update_notes.txt']
-__version__="0.0.2a"
+__version__="0.4.0"
 __doc__ = "ePMV v"+__version__
 __doc__+"""\
 Use cinema4d as a molecular viewer
@@ -52,13 +51,20 @@ os.chdir(".."+os.sep)
 softdir = os.path.abspath(os.curdir)
 MGL_ROOT=""
 mgldirfile=softdir+os.sep+"mgltoolsdir"
-if os.path.isfile(mgldirfile) :
+local = False
+localpath = softdir+os.sep+"plugins"+os.sep+"ePMV"+os.sep+"MGLToolsPckgs"
+print localpath
+if os.path.exists(localpath):
+        MGL_ROOT=softdir+os.sep+"ePMV"+os.sep
+        local = True
+elif os.path.isfile(mgldirfile) :
         f=open(mgldirfile,'r')
         MGL_ROOT=f.readline()
         f.close()
 else :
-    c4d.gui.MessageDialog("ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile)
-    exit()
+	    msg = "ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile+"\n"+localpath
+	    c4d.gui.MessageDialog(msg)
+        #exit()
 #add to syspath
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
 
@@ -73,25 +79,23 @@ from c4d import gui
 import sys
 import os
 from time import time
-
-sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
-if sys.platform == "win32":
-    sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
+if not local :
+    if sys.platform == "win32":
+        sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
+    else :
+        sys.path.insert(1,sys.path[0]+"/lib-tk")
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
 else :
-    sys.path.insert(1,sys.path[0]+"/lib-tk")
-    sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
-    sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
-
-#only need to do it once the sys path update....
-    #pmv 1.6.0 seems to works perfect, no need to patch
-    #even better if 64bits i guess
-
+    sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
+    sys.path.insert(1,MGL_ROOT+'/MGLToolsPckgs/lib-tk')
+	
 #be sure to use a unique ID obtained from www.plugincafe.com
-PLUGIN_ID = 1023406666
+PLUGIN_ID = 1027431
 VERBOSE = 0
 
-import pyubic
-pyubic.setUIClass('c4d')
+import upy
+upy.setUIClass('c4d')
 
 from ePMV import epmvGui
 
@@ -111,9 +115,9 @@ class epmv_C4dDialog(plugins.CommandData):
          if self.dialog is None:
             self.dialog = epmvGui.epmvGui()
             self.dialog.setup(rep=dname,mglroot=MGL_ROOT,host='c4d')
-            self.dialog.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,
-                useLog = False,doCloud=False,forceFetch=False)
-         return self.dialog.Open(PLUGIN_ID)
+            self.dialog.epmv.Set(bicyl=True,use_progressBar = False,doLight = False,doCamera = False,
+                useLog = False,forceFetch=False)
+         return self.dialog.Open(PLUGIN_ID,defaultw=400, defaulth=550)
     
    def RestoreLayout(self, sec_ref):
          print "restore",sec_ref    
@@ -123,8 +127,8 @@ class epmv_C4dDialog(plugins.CommandData):
          if self.dialog is None:
             self.dialog = epmvGui.epmvGui()
             self.dialog.setup(rep=dname,mglroot=MGL_ROOT,host='c4d')
-            self.dialog.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,
-                useLog = False,doCloud=False,forceFetch=False)
+            self.dialog.epmv.Set(bicyl=True,use_progressBar = False,doLight = False,doCamera = False,
+                useLog = False,forceFetch=False)
          self.dialog.restored=True
          return self.dialog.Restore(pluginid=PLUGIN_ID,secret=sec_ref)
 

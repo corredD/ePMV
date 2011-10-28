@@ -16,7 +16,7 @@ from Pmv.mvCommand import MVCommand
 from Pmv.moleculeViewer import MoleculeViewer
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
 from Pmv.moleculeViewer import DeleteAtomsEvent, EditAtomsEvent
-from Pmv.deleteCommands import BeforeDeleteMoleculesEvent
+from Pmv.deleteCommands import BeforeDeleteMoleculesEvent,AfterDeleteAtomsEvent
 from Pmv.displayCommands import BindGeomToMolecularFragment
 from Pmv.trajectoryCommands import PlayTrajectoryCommand
 
@@ -26,9 +26,8 @@ from Pmv.pmvPalettes import RasmolAmino, RasmolAminoSortedKeys
 from Pmv.pmvPalettes import Shapely
 from Pmv.pmvPalettes import SecondaryStructureType
 
-from MolKit.protein import ResidueSetSelector,Chain, Protein,Residue
-from MolKit.molecule import Atom
-
+from MolKit.protein import ResidueSetSelector,Chain, Protein,Residue,ChainSet
+from MolKit.molecule import Atom,AtomSet
 
 from mglutil.util.recentFiles import RecentFiles
 
@@ -46,7 +45,7 @@ from ePMV.lightGridCommands import IsocontourCommand
 #check if work with server/client mode...
 
 #color utility from pyubi
-from pyubic import colors as col
+from upy import colors as col
 
 class loadMoleculeInHost(MVCommand):
     """
@@ -86,21 +85,22 @@ class loadMoleculeInHost(MVCommand):
         molname=mol.name#mol.replace("'","")
         #setup some variable
         self.mv.molDispl[molname]={}
-        for k in ["bead","cpk","bs","ss","loft","arm","spline","surf","cms","meta"]:
+        for k in ["bead","cpk","bs","ss","loft","arm","spline","surf",
+                  "cms","meta","points","lines","cgeom"]:
             self.mv.molDispl[molname][k]=False
         self.mv.molDispl[molname]["col"] = None        
-        if molname not in self.mv.MolSelection.keys() :
+        if molname not in list(self.mv.MolSelection.keys()) :
             self.mv.MolSelection[molname]={}
-        if molname not in self.mv.selections.keys() :       
+        if molname not in list(self.mv.selections.keys()) :       
             self.mv.selections[molname]={}
-        if molname not in self.mv.iMolData.keys() :       
+        if molname not in list(self.mv.iMolData.keys()) :       
             self.mv.iMolData[molname]=[]
         sc = self.epmv._getCurrentScene()
         #mol=os.path.splitext(os.path.basename(mol))[0]
         #sys.stderr.write('%s\n'%molname)
         if self.epmv.duplicatemol : #molecule already loaded,so the name is overwrite by pmv, add _ind
 #            print self.epmv.duplicatedMols.keys()
-            if mol in self.epmv.duplicatedMols.keys() : self.epmv.duplicatedMols[molname]+=1
+            if mol in list(self.epmv.duplicatedMols.keys()) : self.epmv.duplicatedMols[molname]+=1
             else : self.epmv.duplicatedMols[molname]=1
             molname=molname+"_"+str(self.epmv.duplicatedMols[molname])
         molname=molname.replace(".","_")
@@ -115,13 +115,17 @@ class loadMoleculeInHost(MVCommand):
         #mol=mol.replace("_","")
         sys.stderr.write('%s\n'%mol)
         #mol.name = mol.name.replace("_","")        
-        self.mv.buildBondsByDistance(mol,log=0)
+        if self.epmv.build_bonds :
+            import MolKit
+            MolKit.bonds_threshold = self.epmv.bonds_threshold
+            self.mv.buildBondsByDistance(mol,log=0)
 #        self.mv.computeSESAndSASArea(mol,log=0)
 #        sys.stderr.write("center")
         center = mol.getCenter()
 #        sys.stderr.write(center)
         #if centering is need we will translate to center
-        if self.epmv.center_mol :
+        centerO = None
+        if self.epmv.center_mol :# and not self.epmv.parseBioMT:
             matrix = numpy.identity(4,'f')
             matrix[3,:3] = numpy.array(center)*-1
             #print matrix
@@ -130,6 +134,9 @@ class loadMoleculeInHost(MVCommand):
             #mol.allAtoms.setConformation(0)
             center = mol.getCenter()
             #print center
+        else :
+            #create an empty at center
+            centerO=self.epmv._newEmpty(mol.name+"_center",location=center)#center)
         if self.epmv.host == 'chimera':
             model=self.epmv.helper.readMol(mol.parser.filename)
             mol.ch_model = model
@@ -142,18 +149,25 @@ class loadMoleculeInHost(MVCommand):
             iConf = len(mol.allAtoms[0]._coords)-1
             from ePMV.extension.Modeller.pmvAction import pmvAction
             mol.pmvaction=pmvAction(1, 1, 1000,iconf=iConf,pmvModel=mol,
-                                    mv=self.epmv)#skip,first,last
+                                    mv=self.epmv.mv,epmv= self.epmv)
+            mol.allAtoms.setConformation(0)
+            #skip,first,last
+        else :
+            if self.epmv.removeWater:
+                self.mv.deleteWater(mol)
         #create an empty/null object as the parent of all geom, and build the 
         #molecule hierarchy as empty for each Chain 
         master=self.epmv._newEmpty(mol.name,location=[0.,0.,0.])#center)
         mol.geomContainer.masterGeom.obj=master
         self.epmv._addObjectToScene(sc,master)
+        if not self.epmv.center_mol and centerO is not None:
+            self.epmv._addObjectToScene(sc,centerO,parent=master)
         mol.geomContainer.masterGeom.chains_obj={}
         mol.geomContainer.masterGeom.res_obj={}        
-        if self.epmv.doCloud:
-            cloud = self.epmv._PointCloudObject(mol.name+"_cloud",
-                                            vertices=mol.allAtoms.coords,
-                                            parent=master)
+#        if self.epmv.doCloud:
+#            cloud = self.epmv._PointCloudObject(mol.name+"_cloud",
+#                                            vertices=mol.allAtoms.coords,
+#                                            parent=master)
         ch_colors = self.mv.colorByChains.palette.lookup(mol.chains)
         for i,ch in enumerate(mol.chains):
             sys.stderr.write(str(i)+"\n")
@@ -169,10 +183,12 @@ class loadMoleculeInHost(MVCommand):
             parent = chobj
             #make the chain material
             ch.material = self.epmv.helper.addMaterial(ch.full_name()+"_mat",ch_colors[i])
-            if self.epmv.doCloud:
-                cloud = self.epmv._PointCloudObject(ch.full_name()+"_cloud",
-                                                vertices=ch.residues.atoms.coords,
-                                                parent=chobj)
+            ch.material = ch.full_name()+"_mat"
+#            if self.epmv.doCloud:
+#                print "ok docloud",ch.full_name()+"_cloud"
+#                cloud = self.epmv._PointCloudObject(ch.full_name()+"_cloud",
+#                                                vertices=ch.residues.atoms.coords,
+#                                                parent=chobj)
             #self.epmv._addObjectToScene(sc,cloud,parent=chobj)
         #if self.useTree == 'perRes' :
         #        for res in ch.residues : 
@@ -221,11 +237,19 @@ class loadMoleculeInHost(MVCommand):
             self.epmv._addLampToScene("lamp_"+mol.name,'Area',(1.,1.,1.),15.,0.8,1.5,False,center,sc)
             self.epmv._addLampToScene("sun_"+mol.name,'Sun',(1.,1.,1.),15.,0.8,1.5,False,center,sc)
 
+        #parseBioMT: problem of centering....we should just center the big thing at the end
+#        if self.epmv.parseBioMT:
+#            #need to get the information from the parser and create the instance/null parent etc.
+#            #problem for maya and blender....
+#            #only for PDB actually
+#            #by default we can create the trnasformation node and then apply later the geometry...?
+            
+        
     def onAddObjectToViewer(self, obj):
-        apply(self.doitWrapper, (obj,))
+        self.doitWrapper(*(obj,))
 
     def __call__(self, mol, **kw):
-        apply(self.doitWrapper, (mol,), kw)
+        self.doitWrapper(*(mol,), **kw)
         
 class epmvAdaptor:
     """
@@ -235,39 +259,56 @@ class epmvAdaptor:
             define the hostAppli helper function to apply according Pmv event.
             Each hostApp adaptor herited from this class.
     """
+    lastUsed= {}
+    listeKeywords = {}
+    listeKeywords["dsAtLoad"]=["secondary structure","beadRibbon","clouds",
+                                "line","MSMS","CMS","None"]
     keywords={"useLog":None,
         "bicyl":{"name":"Split bonds","value":True,"type":"checkbox"},#one or two cylinder to display a bond stick
         "center_mol":{"name":"Center Molecule","value":True,"type":"checkbox"},
         "center_grid":{"name":"Center Grid","value":True,"type":"checkbox"},
+        "build_bonds":{"name":"Build bonds by distance","value":True,"type":"checkbox"},
+        "bonds_threshold":{"name":"bonds distance cutoff","value":1.1,"type":"inputFloat",
+                            "mini":0.,"maxi":10.},
         "joins":None,
         "colorProxyObject":None,	
         "only":None,
         "updateSS":None,
+        "updateColor":{"name":"Update Color","value":True,"type":"checkbox"},
         "use_instances":None,
         "duplicatemol":None,
         "useTree":None,#None#'perRes' #or perAtom	
         "useIK":None,		
-        "use_progressBar": {"name":"Use progress bar","value":False,"type":"checkbox"},
-        "doCloud":{"name":"Render points","value":True,"type":"checkbox"},
+        "use_progressBar": {"name":"Progress bar","value":False,"type":"checkbox"},
+        #"doCloud":{"name":"Render points","value":True,"type":"checkbox"}, now in the represnetation
         "doCamera":{"name":"PMV camera","value":True,"type":"checkbox"},
-        "doLight":{"name":"PMV light","value":True,"type":"checkbox"},
+        "removeWater":{"name":"remove Water","value":True,"type":"checkbox"},
+        "dsAtLoad":{"name":"Loading display",
+                    "value":listeKeywords["dsAtLoad"],
+                    "type":"pullMenu"},
+        "join_ss":{"name":"join SS geometry","value":False,"type":"checkbox"},
+        "force_pross" :{"name":"force PROSS","value":False,"type":"checkbox"},
+        "doLight":{"name":"PMV light","value":False,"type":"checkbox"},
         "useModeller":{"name":"Use Modeller","value":False,"type":"checkbox"},
         "usePymol":{"name":"Use PyMol","value":False,"type":"checkbox"},
+        #"parseBioMT":{"name":"Use PyMol","value":False,"type":"checkbox"},
         "synchro_realtime":{"name":"Synchro realtime","value":False,"type":"checkbox"},
-        "synchro_timeline":{"name":"Synchronize data player to timeline",
+        "synchro_timeline":{"name":"Synchro timeline",
                             "value":False,"type":"checkbox"},
         "synchro_ratio":[{"name":"steps every","value":1,"type":"inputInt",
                             "mini":0,"maxi":2000},
                          {"name":"frames","value":1,"type":"inputInt",
                          "mini":0,"maxi":2000}],
         "forceFetch":{"name":"Force downloading on Fetch","value":False,"type":"checkbox"}
+
         }
-    
-    MAX_LENGTH_NAME = 5
+    #need keyword order
+    MAX_LENGTH_NAME = 5#this for blender..you may change it for other host...
     
     def setupMV(self):
         self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
         self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
+        self.mv.browseCommands('strutsCommands', package='Pmv',commands=['buildStruts'], topCommand=0)
         self.mv.addCommand(PlayTrajectoryCommand(),'playTrajectory',None)
         self.mv.addCommand(addGridCommand(),'addGrid',None)
         self.mv.addCommand(readAnyGrid(),'readAny',None)
@@ -277,28 +318,45 @@ class epmvAdaptor:
             self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
             self.mv.registerListener(AddGeomsEvent, self.updateGeom)
             self.mv.registerListener(EditGeomsEvent, self.updateGeom)
-            self.mv.registerListener(DeleteAtomsEvent, self.updateModel)
+            self.mv.registerListener(AfterDeleteAtomsEvent, self.updateModel)
             self.mv.registerListener(BeforeDeleteMoleculesEvent,self.updateModel)
             self.mv.addCommand(loadMoleculeInHost(self),'_loadMol',None)            
-            self.mv.embedInto(self.host,debug=0)
+            #self.mv.embedInto(self.host,debug=0)
+            self.mv.embeded = True
         #compatibility with PMV
         self.mv.Grid3DReadAny = self.mv.readAny
         #mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
         self.mv.userpref['Read molecules as']['value']='conformations'
-        
+        self.mv.setUserPreference(('Read molecules as', 'conformations',), log=0)
+        self.mv.setUserPreference(('Number of Undo', '0',), redraw=0, log=1)
+        self.mv.setUserPreference(('Save Perspective on Exit', 'no',), log=0)
+        self.mv.setUserPreference(('Transformation Logging', 'no',), log=0) 
+        #should add some user preferece and be able to save it       
         #recentFiles Folder
         rcFile = self.mv.rcFolder
         if rcFile:
             rcFile += os.sep + 'Pmv' + os.sep + "recent.pkl"
             self.mv.recentFiles = RecentFiles(self.mv, None, filePath=rcFile,index=0)
         else :
-            print "no rcFolder??"
+            print("no rcFolder??")
         
         #this  create mv.hostapp which handle server/client and log event system
         #NOTE : need to test it in the latest version
 #        if not self.useLog : 
 #            self.mv.hostApp.driver.useEvent = True
         self.mv.iTraj={}
+        self.funcColor = [self.mv.colorByAtomType,
+                          self.mv.colorAtomsUsingDG,
+                          self.mv.colorByResidueType,
+                          self.mv.colorResiduesUsingShapely,
+                          self.mv.colorBySecondaryStructure,
+                          self.mv.colorByChains,
+                          self.mv.color,
+                          self.mv.colorByProperty]
+        self.fTypeToFc = {"ByAtom":0,"AtomsU":1,"ByResi":2,"Residu":3,
+                          "BySeco":4,"ByChai":5,"":6,
+                          "ByPropN":7,"ByPropT":8,"ByPropS":9}
+        self.mv.host = self.host
 #        mv.hostApp.driver.bicyl = self.bicyl
 
     def __init__(self,mv=None,host=None,useLog=False,debug=0,gui=False,**kw):
@@ -341,10 +399,13 @@ class epmvAdaptor:
         self.ResidueSelector = ResidueSetSelector()
         self.ssk=['Heli', 'Shee', 'Coil', 'Turn', 'Stra']
         self.ResidueSelector=ResidueSetSelector()
-        self.AtmRadi = {"A":1.54,"M":1.54,"N":"1.54","C":"1.7","CA":"1.7",
-                        "O":"1.52","S":"1.85","H":"1.2","P" : "1.04"}
+        self.AtmRadi = {"A":1.54,"M":1.54,"N":"1.7","C":"1.74","CA":"1.74",
+                        "O":"1.39","S":"1.85","H":"1.2","P" : "1.04"}
         self.lookupDGFunc = util.lookupDGFunc
         self.max_atoms = 10000
+        self.usefullname = False
+        self.molDictionary = {}
+        self.hmol = 0
         
     def setupInst(self):
 #        print "mglroot ",self.mglroot
@@ -365,9 +426,15 @@ class epmvAdaptor:
         """
         Initialise the defaults options for ePMV, e.g. keywords.
         """    
+        #we should use userpref from the ViewerFramework and mglutil.userpref class
+        #saved in '/local/ludo/.mgltools/1.5.6rc3/.settings'
         for key in self.keywords : 
             if self.keywords[key] is not None and key != "synchro_ratio":
-                setattr(self,key,self.keywords[key]["value"])
+                if self.keywords[key]["type"] == "pullMenu":
+                    val = self.listeKeywords[key][0]
+                    setattr(self,key,val)
+                else :
+                    setattr(self,key,self.keywords[key]["value"])
         
         self.useLog = False
         self.joins=False
@@ -402,7 +469,7 @@ class epmvAdaptor:
             self.initOption()
         
         for k in kw :
-            if k in self.keywords.keys() :
+            if k in list(self.keywords.keys()) :
                 if self.keywords[k] is not None and k != "synchro_ratio":
                     setattr(self,k,kw[k])
                     self.keywords[k]["value"] = kw[k]
@@ -441,6 +508,9 @@ class epmvAdaptor:
         if val is not None:
             self.synchro_ratio = val
             #should be a an array [1,1]
+        val = kw.pop( 'usefullname', None)
+        if val is not None:
+            self.usefullname = val            
 
     def start(self,debug=0):
         """
@@ -503,6 +573,7 @@ class epmvAdaptor:
                            proxyCol=proxyCol)
         self._addObjToGeom(obj,g)
         self._addObjectToScene(self._getCurrentScene(),obj[0],parent=parent)
+        return obj
 
     def getChainParentName(self,selection,mol):
         """
@@ -537,7 +608,7 @@ class epmvAdaptor:
         @return:  the name of the selection in the dictionary if retrieved.
         """    
         
-        for selname in molSelDic.keys():
+        for selname in list(molSelDic.keys()):
             if currentSel[-1] == ';' : currentSel=currentSel[0:-1]
             if currentSel == molSelDic[selname][3] : return selname
             if currentSel == molSelDic[selname] : return selname
@@ -549,12 +620,12 @@ class epmvAdaptor:
         selname=""
         mname=val
         #print self.mv.iMol.keys()       
-        if mname in self.mv.selections.keys(): 
+        if mname in list(self.mv.selections.keys()): 
             selname=mname
 #            print str(val),mname,selname
         else : #it is the selecetionname
-            for name in self.mv.selections.keys():
-                for sname in self.mv.selections[name].keys():
+            for name in list(self.mv.selections.keys()):
+                for sname in list(self.mv.selections[name].keys()):
                     if mname == sname :
                         selname = sname
                         mname = name
@@ -594,9 +665,9 @@ class epmvAdaptor:
             sel=mol.name+":::N,CA,C"
         elif selection.upper() == 'SIDECHAIN':              
             sel=mol.name+":::sidechain"
-        elif selection.upper() in AtomElements.keys(): sel=mol.name+':::'+selection
-        elif selection.upper() in RasmolAmino.keys(): sel=mol.name+'::'+self.ResidueSelector.r_keyD[selection]+':'
-        elif selection.lower() in ResidueSetSelector.residueList.keys() : sel=mol.name+'::'+selection+':'
+        elif selection.upper() in list(AtomElements.keys()): sel=mol.name+':::'+selection
+        elif selection.upper() in list(RasmolAmino.keys()): sel=mol.name+'::'+self.ResidueSelector.r_keyD[selection]+':'
+        elif selection.lower() in list(ResidueSetSelector.residueList.keys()) : sel=mol.name+'::'+selection+':'
         elif selection.split(':')[0] == mol.name : sel = selection
         elif selection.split(' ')[0].lower() == "chain" : sel = mol.name+':'+selection.split(' ')[1]+'::'
         elif selection == 'picked' and self.gui is not None: 
@@ -608,15 +679,15 @@ class epmvAdaptor:
 #                print o,self.parseObjectName(o)
                 astr.append(self.parseObjectName(o))
             sel=self.toStringSel(astr)
-#            print "parsed selection ",sel
-#            print "from ",astr
+            print("parsed selection ",sel)
+            print("from ",astr)
             #should be #B_MOL:CHAIN:RESIDUE:ATOMS
             #thus atoms = 
             #sel=mol.name astr[3]
         selection = self.mv.select(str(sel),negate=False, only=True, xor=False, 
                                    log=0, intersect=False)
         if not isinstance(selection,Atom) : selection = selection.findType(Atom)
-#        print self,selection
+        print("ok sel", len(selection))#,selection
         return sel,selection
 
     def getSelectionCommand(self,selection,mol):
@@ -648,7 +719,7 @@ class epmvAdaptor:
         @param event: the current event, ie DeleteAtomsEvent
         """    
         
-        if isinstance(event, DeleteAtomsEvent):
+        if isinstance(event, AfterDeleteAtomsEvent):#DeleteAtomsEvent):
             action='deleteAt'
             #when atom are deleted we have to redo the current representation and 
             #selection
@@ -667,7 +738,9 @@ class epmvAdaptor:
                 if o is not None :
 #                    print nameo
                     self.helper.deleteObject(o)
-                #and the bonds...and other geom?            
+                #and the bonds...and other geom?
+            mol = atom_set[0].top#getParentOfType(Protein)
+            self.mv.buildBondsByDistance(mol,log=0)
         elif isinstance(event, BeforeDeleteMoleculesEvent):
             action='deletMol'
 #            print action,dir(event)
@@ -715,7 +788,7 @@ class epmvAdaptor:
         elif event.arg == 'bs' and action =='edit' and not self.useLog :
             self._editBS(mol,atms,options)
         elif event.arg == 'trace' and action =='edit' and not self.useLog :
-            print "displayTrace not supported Yet"
+            print("displayTrace not supported Yet")
             #displayTrace should use a linear spline extruded like _ribbon command
         elif event.arg[0:4] == 'msms' and action =='edit' and not self.useLog :
 			#there is 2 different msms event : compute msms_c and display msms_ds
@@ -724,13 +797,13 @@ class epmvAdaptor:
             elif event.arg == "msms_ds" : #ok display
                 self._displayMSMS(mol,atms,options)     
         elif event.arg[:2] == 'SS' and action =='edit' and not self.useLog :
-            if event.arg == "SSextrude":
-                self._SecondaryStructure(mol,atms,options,extrude=True)
+            #if event.arg == "SSextrude":
+            #    self._SecondaryStructure(mol,atms,options,extrude=True)
             if event.arg == "SSdisplay":
                 self._SecondaryStructure(mol,atms,options)
         #the bead riibbon ?
         #('bead', [nodes,[params,redraw]],setOn=setOn, setOff=setOff)
-        if event.arg == 'bead' and action =='edit' :
+        elif event.arg == 'bead' and action =='edit' :
             self._beadedRibbons(mol,atms,options[0])
         #self.beadedRibbons("1crn", redraw=0, log=1)
         #################COLOR EVENT############################################
@@ -738,12 +811,18 @@ class epmvAdaptor:
             #in this case liste of geoms correspond to the first options
             #and the type of function is the last options
             self._color(mol,atms,options)
+        elif event.arg == 'struts' and action =='edit' :
+            self._struts(mol,atms,options[0])#nodes, params
 
     def delMolDic(self,mname):
-        del self.mv.selections[mname]
-        del self.mv.iMolData[mname]
-        del self.mv.molDispl[mname]
-        del self.mv.MolSelection[mname]
+        if mname in self.mv.selections:
+            del self.mv.selections[mname]
+        if mname in self.mv.iMolData:
+            del self.mv.iMolData[mname]
+        if mname in self.mv.molDispl:
+            del self.mv.molDispl[mname]
+        if mname in self.mv.MolSelection:
+            del self.mv.MolSelection[mname]
 #        print self.mv.selections
         
     def delGeomMol(self,mol):
@@ -762,28 +841,44 @@ class epmvAdaptor:
         @type  molname: str
         @param molname: the molecule name        
         """            
-        if molname not in self.mv.molDispl.keys() :
+        if molname not in list(self.mv.molDispl.keys()) :
             self.mv.molDispl[molname]={}
-            for k in ["cpk","bs","ss","bead","loft","arm","spline","surf","cms","meta"]:
+            for k in ["cpk","bs","ss","bead","loft","arm","spline",
+                      "surf","cms","meta","points","lines","cgeom"]:
                 self.mv.molDispl[molname][k]=False
             self.mv.molDispl[molname]["col"] = None
-        if molname not in self.mv.MolSelection.keys() :
+        if molname not in list(self.mv.MolSelection.keys()) :
             self.mv.MolSelection[molname]={}
-        if molname not in self.mv.selections.keys() :       
+        if molname not in list(self.mv.selections.keys()) :       
             self.mv.selections[molname]={}
-        if molname not in self.mv.iMolData.keys() :       
+        if molname not in list(self.mv.iMolData.keys()) :       
             self.mv.iMolData[molname]=[]
-        
+        molinDic = False
+        for k in self.molDictionary:
+            if molname == self.molDictionary[k][0]:
+                molinDic = True
+        if not molinDic :
+            self.molDictionary[self.hmol] = [molname,self.mv.Mols.name.index(molname)]
+            self.hmol +=1            
+            
     def _deleteMolecule(self,mol):
         if mol.name in self.mv.Mols.name :
             #need to first delete the geom and the associates dictionary
             #note the mesh are still in the memory ....
             self.delMolDic(mol.name)
-            self.delGeomMol(mol)
+            try :
+                self.delGeomMol(mol)
+            except:
+                print("oups")
             #then delete the mol
             self.mv.deleteMol(mol, log=0)
             #del cam and light
-
+            #need to update  self.molDictionary[molname]
+            self.molDictionary={}
+            for i,mol in enumerate(self.mv.Mols):
+                mindice, mvindice = self.getIndiceMol(mol.name)
+                self.molDictionary[mindice] = [mol.name,self.mv.Mols.name.index(mol.name)]
+            
     def _toggleUpdateSphere(self,atms,display,needRedo,i,N,prefix):
         """
         Handle the visibility and the update (pos) of each atom's Sphere geometry.
@@ -804,6 +899,7 @@ class epmvAdaptor:
         """            
         #TODO, fix problem with Heteratom that can have the same fullname
         nameo = self.atomNameRule(atms,prefix)
+#        print nameo
         #prefix+"_"+atms.full_name().replace("'","b")+"n"+str(atms.number)
         o=self._getObject(nameo)
         if o != None :
@@ -852,19 +948,20 @@ class epmvAdaptor:
             c0=numpy.array(atm1.coords)
             c1=numpy.array(atm2.coords)
             vect = c1 - c0
-            name1,name2 = self.bondNameRule(atm1,atm2,"T")
             
+            name1,name2 = self.bondNameRule(atm1,atm2,"T")
+#            print name1,c0,c1,vect
 #            n1=atm1.full_name().split(":")
 #            n2=atm2.full_name().split(":")
 #            name1="T_"+molname+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
 #            name2="T_"+molname+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name
 #            name1 = name1.replace("'","b")
 #            name2 = name2.replace("'","b")            
-            #print atm1,atm2,c0,c1,vect,numpy.array(c0+(vect/2.))
             o=self._getObject(name1)
             if o != None : 
                 if needRedo : 
-                    self._updateTubeObj(o,c0,numpy.array(c0+(vect/2.)))
+                    med = numpy.array(c0+(vect/2.))
+                    self._updateTubeObj(o,c0,med)
                 self._toggleDisplay(o,display=display)
             o=self._getObject(name2)
             if o != None : 
@@ -892,10 +989,10 @@ class epmvAdaptor:
         display = not opts[1]
 
         needRedo = opts[8]
-#        print "redo",needRedo
+        print("redo",needRedo)
         options=self.mv.displayCPK.lastUsedValues["default"]
-        if options.has_key("redraw"): needRedo = options["redraw"]
-#        print "redo",needRedo
+        if "redraw" in options: needRedo = options["redraw"]
+        print ("redo",needRedo)
         ##NB do we want to handle multiple mol at once?
         mol = mol[0]
         g = mol.geomContainer.geoms['cpk']
@@ -956,7 +1053,7 @@ class epmvAdaptor:
         display = not opts[1]
         needRedo = opts[-1]
         options=self.mv.displaySticksAndBalls.lastUsedValues["default"]
-        if options.has_key("redraw"): needRedo = options["redraw"]
+        if "redraw" in options: needRedo = options["redraw"]
         
         #NB do we want to handle multiple mol at once?
         mol = mol[0]
@@ -1045,7 +1142,14 @@ class epmvAdaptor:
 #                map(lambda x,display=display,needRedo=needRedo,N=len(bonds),molname=mol.name: 
 #                        self._toggleUpdateStick(x[1],display,needRedo,x[0],N,molname), 
 #                        enumerate(bonds))                
-         
+
+
+    def _struts(self,mol,atms,options):
+        thresh = options['distCutoff']
+        distance = options['distCutoff2']
+        #need to make instance of cylinder or other geometries for each struts
+        pass
+
     def _SecondaryStructure(self,mol,atms,options,extrude=False):
         """
         Callback for display/extrudeSecondaryStructrure commands. Create and update 
@@ -1064,6 +1168,7 @@ class epmvAdaptor:
         """ 
         chname=['Z','Y','X','W','V','U','T']
         proxy = self.colorProxyObject
+        join = self.join_ss
         self.colorProxyObject = False
         sc = self._getCurrentScene()
         mol = mol[0]
@@ -1078,32 +1183,51 @@ class epmvAdaptor:
         i=0
         if extrude :
             display = options[9]
-        #check the ss 
+        #check the ss
+        #print ("chn",hasattr(chn,"secondarystructureset")) 
         if not hasattr(chn,"secondarystructureset"):
             return
         for ch in mol.chains:
 #            print ch.name
+            listeObj=[]
             if selection and ch is chn:
                 ch = chn
 #                print chn.name
+            if not hasattr(ch,"secondarystructureset"):
+                return
             parent = self._getObject(chobj[ch.name+"_ss"])
             for elem in ch.secondarystructureset:
                 #get the geom or the extruder ?
-                ex=elem.exElt
+                if hasattr(elem,"exElt"):
+                    ex=elem.exElt
+                else :
+                    continue
                 name = elem.name
-#                print ex,display,hasattr(ex,"obj")
-                if not hasattr(ex,"obj") and display :
+                print (ex,display,hasattr(ex,"obj"))
+                obj = self._getObject(mol.name+"_"+ch.name+"_"+name)
+                print (obj,hasattr(ex,"obj"))
+                if (not hasattr(ex,"obj") and obj is None) and display :
 #                    print mol.name+"_"+ch.name+"_"+name
                     parent=self._getObject(chobj[ch.name+"_ss"])                  
-                    self.createMesh(mol.name+"_"+ch.name+"_"+name,ex,parent=parent)
+                    obj = self.createMesh(mol.name+"_"+ch.name+"_"+name,ex,parent=parent)
+                    listeObj.append(obj[0])
+                    #if not hasattr(ex,"obj") :
+                    #    self._addObjToGeom(obj,ex)#.obj = obj
+#                        ex.mesh = obj
                     elem.exElt.name = name
                     #change the material color to ss
-                    for key in SecondaryStructureType.keys():
+                    for key in list(SecondaryStructureType.keys()):
                         if key in name:
                             color = SecondaryStructureType[key]
                             break
                     matname = "mat_"+self.helper.getName(ex.obj)
-                    self.helper.colorMaterial(matname, color)
+                    mat = self.helper.getMaterial(matname)
+                    if mat is None :
+                        pass
+                        #mat = self.helper.addMaterial(matname,color)
+                        #self.helper.assignMaterial(self._getObject(obj[1]),mat)
+                    else :
+                        self.helper.colorMaterial(matname, color)
                     if ch.ribbonType()=='NA':
                         #name = mol.name+"_"+c.name+"_lader"
                         #make the ladder
@@ -1112,14 +1236,22 @@ class epmvAdaptor:
                             parent = ex.obj
                         laders=self.NAlader("rib",mol,ch,parent = parent,bilader=False)[0]
                         g.children[0].obj = laders
-                elif hasattr(ex,"obj") : 
-                    self._updateMesh(ex)
+                elif hasattr(ex,"obj") or obj is not None: 
+                    print ("toggle",display,obj)
+                    if not hasattr(ex,"obj"):
+                        self._addObjToGeom(obj,ex)#ex.obj = obj
+                        #ex.mesh = self.helper.getMeshFrom(obj)
+                    #self._updateMesh(ex)#?
 #                    print "d",ex.obj,display
-                    self._toggleDisplay(ex.obj,display)
+                    self._toggleDisplay(obj,display)
                     if ch.ribbonType()=='NA':
-                        o=self._getObject("rib"+mol.name+"_"+ch.name+"_lader")
+                        o=self._getObject("rib"+mol.name+ch.name+"_lader")
                         #self._toggleDisplay(o,display)
 #                print "after",ex,display,hasattr(ex,"obj")
+                listeObj.append(obj)
+            #join ?
+            if join :
+                self.helper.JoinsObjects(listeObj)
             if selection :
                 break
             if self.use_progressBar  and (i%20)==0 :
@@ -1366,7 +1498,7 @@ class epmvAdaptor:
             progress = float(i) / N
             self._progressBar(progress, 'color Sticks')
  
-    def _colorSphere(self,atm,i,sel,prefix,p,fType,geom):
+    def _colorSphere(self,atm,i,sel,prefix,p,fType,geom,colors =None):
         """
         Handle the coloring of one atom sphere geometry.
         i and N arg are used for progress bar purpose.
@@ -1389,13 +1521,131 @@ class epmvAdaptor:
         name = self.atomNameRule(atm,prefix)
         #prefix+"_"+atm.full_name().replace("'","b")+"n"+str(atm.number)
         o=self._getObject(name)
-        vcolors = [atm.colors[geom],]
+        if colors is None :
+            vcolors = [atm.colors[geom],]
+        else :
+            vcolors = [colors]
         if o != None :     
             self._checkChangeMaterial(o,fType,atom=atm,parent=p,color=vcolors[0])
             if self.use_progressBar  and (i%20)==0 :
                 progress = float(i) / len(sel)
                 self._progressBar(progress, 'color Spheres')
+
+
+    def retrieveAtColorFrom(self, atom, selection, colors,geom):
+            if colors is not None :
+                return colors[selection.index(atom)]        
+            else :
+                return atom.colors[geom]
         
+    def _colorLadder(self,mol,chain,fType,colors,geom="secondarystructure",
+                     bilader=False,name="rib",sel=None):
+        if sel is not None :
+            residues = sel.parent
+            total_res = len(residues)
+        else :
+            residues = chain.residues
+            total_res = len(residues)
+        color=None
+        #name = "rib"#depend if ribbon or beaded or loft...
+        for i in range(total_res):
+            #need two point per residues P->C6 / C6->N3 C T 
+            #need two point per residues P->C8 / C8->N1 ['A', 'G', 'DA', 'DG']
+            NA_type = residues[i].type.strip()
+            try :
+                #at1 = residues[i].atoms.objectsFromString('P')[0]
+                at1 = residues[i].atoms.objectsFromString("O5'")[0]
+            except :
+                continue
+                #at1 = residues[i].atoms[0]#take first atoms # or last ?
+            if NA_type in ['A', 'G', 'DA', 'DG']:
+                at2 = residues[i].atoms.objectsFromString('C8')[0]
+                at3 = residues[i].atoms.objectsFromString('N1')[0]
+            else :
+                at2 = residues[i].atoms.objectsFromString('C6')[0]
+                at3 = residues[i].atoms.objectsFromString('N3')[0]
+            self._colorSphere(at1,i,total_res,"L",None,fType,geom,
+                              colors=self.retrieveAtColorFrom(at1,sel,colors,geom))
+#            sph=self.helper.getObject(name+at1.full_name())
+#            if sph is not None :
+#                vcolors = [at1.colors[geom],]
+#                self._checkChangeMaterial(sph,fType,atom=at1,color=vcolors[0])
+            if bilader :
+                self._colorSphere(at2,i,total_res,"L",None,fType,geom,
+                              colors=self.retrieveAtColorFrom(at2,sel,colors,geom))
+#                sph=self.helper.getObject(name+at2.full_name())
+#                if sph is not None :
+#                    vcolors = [at2.colors[geom],]
+#                    self._checkChangeMaterial(sph,fType,atom=at2,color=vcolors[0])
+            self._colorSphere(at3,i,total_res,"L",None,fType,geom,
+                              colors=self.retrieveAtColorFrom(at3,sel,colors,geom))
+#            sph=self.helper.getObject(name+at3.full_name())
+#            if sph is not None :
+#                vcolors = [at2.colors[geom],]
+#                self._checkChangeMaterial(sph,fType,atom=at2,color=vcolors[0])
+            if bilader :
+                stick = self.helper.getObject(self.bondNameRule(at1,at2,"T")[0])
+                if stick is not None :
+                    vcolors = [self.retrieveAtColorFrom(at1,sel,colors,geom),
+                               self.retrieveAtColorFrom(at2,sel,colors,geom)]
+                    self._checkChangeMaterial(stick,fType,atom=at1,color=vcolors[0])
+                stick = self.helper.getObject(self.bondNameRule(at2,at3,"T")[0])
+                if stick is not None :
+                    vcolors = [self.retrieveAtColorFrom(at2,sel,colors,geom),
+                               self.retrieveAtColorFrom(at3,sel,colors,geom)]
+                    self._checkChangeMaterial(stick,fType,atom=at3,color=vcolors[1])
+            else :
+                stick = self.helper.getObject(self.bondNameRule(at1,at3,"T")[0])
+                if stick is not None :
+                    vcolors = [self.retrieveAtColorFrom(at1,sel,colors,geom),
+                               self.retrieveAtColorFrom(at3,sel,colors,geom)]
+                    self._checkChangeMaterial(stick,fType,atom=at3,color=vcolors[1])
+
+    def color(self,mol=None,mname = None,selection=None,lGeom=[],funcId=None):
+        if mol is None : 
+            return
+        if mname is None :
+            mname = mol.name
+        if funcId is None :
+            funcId = self.mv.molDispl[mname]["col"]
+        if selection == None :
+            selection = mol
+#        print "colorF ", funcId,self.funcColor[funcId], lGeom
+        if funcId == 6 : 
+            #custom color
+            color = self.mv.molDispl[mname]["col"]
+            self.funcColor[6](selection,[color], lGeom, log=1)
+        elif funcId == 7 or funcId == 8 or funcId == 9  :
+            #color by properties , ie NtoC, Bfactor, SAS
+            self.mv.colorByProperty.level='Atom'
+            if funcId == 7 :
+                #what about chain selection
+                maxi = max(selection.number)#selection[-1].number
+                mini = min(selection.number)#selection[0].number
+                property = 'number'
+            elif funcId == 8 :
+                maxi = max(selection.temperatureFactor)
+                mini = min(selection.temperatureFactor)
+                property = 'temperatureFactor'
+            elif funcId == 9 : 
+                if not hasattr(selection,"sas_area"):
+                    try :
+                        self.mv.computeSESAndSASArea(mol)
+                    except :
+                        self.drawError("Problem with mslib")
+                maxi = max(selection.sas_area)
+                mini = min(selection.sas_area)
+                property = 'sas_area'
+#            print ("color",len(selection),property)
+            self.funcColor[7](selection, lGeom, property,mini=float(mini),
+                                        maxi=float(maxi), propertyLevel='Atom', 
+                                        colormap='rgb256')
+            self.mv.molDispl[mname]["col"] = funcId
+        else : 
+            self.funcColor[funcId](selection, lGeom)
+            self.mv.molDispl[mname]["col"] = funcId
+
+
     def _color(self,mol,atms,options):
         """
         General Callback function reacting to any colorX commands. Call according
@@ -1413,6 +1663,8 @@ class epmvAdaptor:
         #color the list of geoms (options[0]) according the function (options[-1])
         lGeoms = options[0]
         fType = options[-1]
+        command_colors = options[1]
+        print ("color function",fType,lGeoms,command_colors)
         mol = mol[0] #TO FIX
         sel=atms[0]
 #        print mol, sel, len(mol.allAtoms) != len(sel)
@@ -1421,26 +1673,46 @@ class epmvAdaptor:
         root = mol.geomContainer.masterGeom.obj
         chobj = mol.geomContainer.masterGeom.chains_obj       
 #        print chn
+#        print lGeoms
         for geom in lGeoms : 
             if geom=="secondarystructure" :
-                #TOFIX the color/res not working...
-                #gss = mol.geomContainer.geoms["secondarystructure"]
                 for ch in mol.chains:
-#                    print ch.name
                     if selection and ch is chn:
                         ch = chn
-#                        print chn.name
                     parent = self._getObject(chobj[ch.name+"_ss"])
                     for elem in ch.secondarystructureset:
                         #get the geom or the extruder ?
-                        ex=elem.exElt
+                        if hasattr(elem,"exElt"):
+                            ex=elem.exElt
+                        else :
+                            continue
                         name = elem.name
                         colors = elem.exElt.colors
                         if colors is None :
                             #get the regular color for this SS if none is get
-                            colors = [SecondaryStructureType[SS.structureType],]
+                            colors = [SecondaryStructureType[elem.structureType],]
                         if hasattr(ex,"obj"):
                             self._changeColor(ex,colors,perVertex=False) #perFaces color
+                        if ch.ribbonType()=='NA':
+                            self._colorLadder(mol,ch,fType,None)
+            elif geom=="loft" :
+                for ch in mol.chains:
+                    if selection and ch is chn:
+                        ch = chn
+                    parent = self._getObject("loft"+mol.name+"_"+ch.name)#loft1crn_A
+                    #should build a gradient material..lets just color the ladder if they exist
+                    #and get first color for applying material on loft
+                    #take the color from the selection color appyed
+                    #print colors,len(command_colors),fType #selection colors
+                    #tthis is per chains, so just take the id from the sel
+                    for i in range(len(sel)):
+                        if sel[i].getParentOfType(Chain) == ch:
+                            colors=[command_colors[i]]
+                            break
+                    self._changeColor(parent,colors,perVertex=False) #perFaces color
+                    if ch.ribbonType()=='NA':
+                        self._colorLadder(mol,ch,fType,command_colors,bilader=True,
+                                          name="loft",sel=sel)                            
             elif geom=="cpk" or geom=="balls": 
                 #have instance materials...so if colorbyResidue have to switch to residueMaterial
                 parent = self.getSelectionCommand(sel,mol)
@@ -1459,9 +1731,6 @@ class epmvAdaptor:
                 if hasattr(g,"obj"):
                     [self._colorSphere(x[1],x[0],sel,
                                     prefix,p,fType,geom) for x in enumerate(sel)]
-#                    map(lambda x,sel=sel,prefix=prefix,p=p,fType=fType,geom=geom: 
-#                        self._colorSphere(x[1],x[0],sel,prefix,p,fType,geom), 
-#                        enumerate(sel))
             elif geom =="sticks" : 
                 g = mol.geomContainer.geoms[geom]
                 colors = mol.geomContainer.getGeomColor(geom)
@@ -1474,17 +1743,22 @@ class epmvAdaptor:
                     bonds, atnobnd = set.bonds
                     if len(set) != 0 : 
                         [self._colorStick(x[1],x[0],atoms,len(bonds),fType,p,mol) for x in enumerate(bonds)]
-#                        map(lambda x,atoms=atoms,p=p,fType=fType,mol=mol,bonds=bonds: 
-#                            self._colorStick(x[1],x[0],atoms,bonds,fType,p,mol), 
-#                            enumerate(bonds))
             else :
-                if mol.geomContainer.geoms.has_key(geom):
+                #mostly these are polygon
+                if geom in mol.geomContainer.geoms:
                     g = mol.geomContainer.geoms[geom]
                     colors=mol.geomContainer.getGeomColor(geom)
                     flag=g.vertexArrayFlag
                     if hasattr(g,"obj"):
                         self._changeColor(g,colors,perVertex=flag,
                                               pb=self.use_progressBar)
+#                elif mol.geomContainer.geoms.has_key(geom):
+#                    g = mol.geomContainer.geoms[geom[2:]]
+#                    colors=mol.geomContainer.getGeomColor(geom)
+#                    flag=g.vertexArrayFlag
+#                    if hasattr(g,"obj"):
+#                        self._changeColor(g,colors,perVertex=flag,
+#                                              pb=self.use_progressBar)
 
     def _isoSurface(self,grid,options):
         """
@@ -1519,7 +1793,8 @@ class epmvAdaptor:
             self._updateMesh(g)
         else :
             self.createMesh(name,g,proxyCol=True,parent=root)
-
+            
+        
     def piecewiseLinearInterpOnIsovalue(self,x):
         """Piecewise linear interpretation on isovalue that is a function
         blobbyness.
@@ -1528,7 +1803,7 @@ class epmvAdaptor:
         X = [-3.0, -2.5, -2.0, -1.5, -1.3, -1.1, -0.9, -0.7, -0.5, -0.3, -0.1]
         Y = [0.6565, 0.8000, 1.0018, 1.3345, 1.5703, 1.8554, 2.2705, 2.9382, 4.1485, 7.1852, 26.5335]
         if x<X[0] or x>X[-1]:
-            print "WARNING: Fast approximation :blobbyness is out of range [-3.0, -0.1]"
+            print("WARNING: Fast approximation :blobbyness is out of range [-3.0, -0.1]")
             return None
         i = 0
         while x > X[i]:
@@ -1711,7 +1986,7 @@ class epmvAdaptor:
                     k = k + 1		 
                     if name != pmv_name : 
             	        if name[1:] != pmv_name[:-1]:
-            	            print name,pmv_name
+            	            print(name,pmv_name)
             	        else : 
             	            coord[(resn, pmv_name)] = res.atom(atomi).xyz()
             	            cood=res.atom(atomi).xyz()
@@ -1725,7 +2000,7 @@ class epmvAdaptor:
         event = EditAtomsEvent('coords', model.allAtoms)
         self.dispatchEvent(event)
         #epmv.insertKeys(model.geomContainer.geoms['cpk'],1)
-        self.helper.update()
+#        self.helper.update()
         
     def updateDataGeom(self,mol):
         """
@@ -1741,19 +2016,43 @@ class epmvAdaptor:
         at = "CA"
         for c in mol.chains :
             if c.ribbonType()=='NA':
-                        at = "O5'"
-            if disp.has_key("spline"):
+                at = "O5'"
+            if "spline" in disp:
                 if disp["spline"] :
                     self.helper.update_spline(mol.name+"_"+c.name+"spline",c.residues.atoms.get(at).coords)
-            if disp.has_key("loft"):
+            if "loft" in disp:
                 if disp["loft"] :
                     if c.ribbonType()=='NA':
                         #need to update the laders
                         self.updateNAlader("loft",mol,c)
                     #verify in c4d and blender
                     self.helper.update_spline("loft"+mol.name+"_"+c.name+"_spline",mol.allAtoms.get(at).coords)        
-            if self.doCloud : 
-                self.helper.updatePoly(mol.name+":"+c.name+"_cloud",vertices=c.residues.atoms.coords)
+            if "points" in disp:
+#                print("update cloud",mol.name+":"+c.name+"_cloudds")
+                self.helper.updatePoly(mol.name+":"+c.name+"_cloudds",
+                                       vertices=c.residues.atoms.coords)
+        if "bead" in disp :
+            if disp["bead"] :
+                params = self.getStoreLastUsed(mol.name,"bead")
+                self.mv.beadedRibbons.redo = True
+                self.mv.beadedRibbons(mol,createEvents=False,**params)
+                self.mv.beadedRibbons.redo = False
+        #what about selection? or per chain?
+        if "surf" in disp:
+            if disp["surf"] :
+                self.updateMSMS(mol,mol.allAtoms) #shoudl I redo the coloring?
+        if "cms" in disp :
+            if disp["cms"] : 
+                self.updateCMS(mol,mol.allAtoms)     
+        #Particles?
+        #look up for surface selection?
+        if hasattr(mol,"has_particls") and mol.has_particls:
+            #hostC = map(self.helper.FromVec,mol.allAtoms.coords)
+            ids = range(len(mol.allAtoms))
+#            map(PS.SetPosition,ids,hostC)
+            #self.helper.setProperty("position",ids,hostC)
+            #Lines ?
+            
             #look if there is a msms:
 #        #find a way to update MSMS and coarse
 #        if self.mv.molDispl[mname][3] : self.gui.updateMSMS()
@@ -1830,6 +2129,97 @@ class epmvAdaptor:
             step=0.01
         return mini,maxi,default,step
         
+    def updateMSMS(self,mol,selection):
+        #update color too ?
+        if mol is None : 
+            return
+        mname = mol.name
+        name='MSMS-MOL'+mname
+        pradius=self.gui.getReal(self.gui.SLIDERS["surf"])
+        density=self.gui.getReal(self.gui.SLIDERS["surfdensity"])
+        try :
+            colorMod = self.mv.molDispl[mname]["col"]
+        except :
+            colorMod = None
+        if pradius is None :
+            pradius,density,colorMod = self.getStoreLastUsed(mname,"surf",
+                                                    keys=["pradius","density","colorMod"])
+        if pradius == 0. :
+            return
+        if density == 0. :
+            return
+        if name in mol.geomContainer.geoms: 
+            self.mv.computeMSMS(selection,#hdensity=msmsopt['hdensity'].val, 
+                                     hdset=None, 
+                                     density=density, 
+                                     pRadius=pradius, 
+                                     perMol=0, display=True, 
+                                     surfName=name)
+            
+            if colorMod is not None and self.updateColor:
+                self.color(mol=mol,mname = mol.name,selection=selection,
+                           lGeom=[name],funcId=colorMod)
+            
+        
+    def updateCMS(self,mol,selection):
+        #update color too ?
+        if mol is None : 
+            return
+        mname = mol.name
+        name='CoarseMS_'+mname
+        if name in list(mol.geomContainer.geoms.keys()):
+            parent=mol.geomContainer.masterGeom.obj 
+            #this doesnt work with c4d rendering
+            iso = self.gui.getReal(self.gui.SLIDERS["cmsI"])
+            res = self.gui.getReal(self.gui.SLIDERS["cmsR"]) 
+            gridsize = self.gui.getLong(self.gui.SLIDERS["cmsG"])
+            try :
+                colorMod = self.mv.molDispl[mname]["col"]
+            except :
+                colorMod = None
+            if iso is None :
+                iso,res,gridsize,colorMod = self.getStoreLastUsed(mname,"cms",
+                                                keys=["iso","res","gridsize","colorMod"])
+                        
+            #isovalue=7.1#float(cmsopt['iso'].val),
+            #resolution=-0.3#float(cmsopt['res'].val)
+            if iso == 0. :
+                return
+            if res == 0. :
+                return
+            g = self.coarseMolSurface(selection,[gridsize,gridsize,gridsize],
+                                      isovalue=iso,
+                                      resolution=res,
+                                      name=name,
+                                      geom = mol.geomContainer.geoms[name])
+            self.helper.updateMesh(g.mesh,vertices=g.getVertices(),
+                                          faces=g.getFaces())
+            if colorMod is not None and self.updateColor:
+                self.color(mol=mol,mname = mol.name,selection=selection,
+                           lGeom=[name],funcId=colorMod)
+        
+    def storeLastUsed(self,mname,key,vdic):
+        if mname not in self.lastUsed:
+            self.lastUsed[mname]={}
+        if key not in self.lastUsed[mname]:
+            self.lastUsed[mname][key]={}
+        for k in vdic:
+            self.lastUsed[mname][key][k] = vdic[k]
+
+    def getStoreLastUsed(self,mname,key,keys=[]):
+        if mname not in self.lastUsed:
+            return [None,]*len(keys)
+        if key not in self.lastUsed[mname]:
+            return [None,]*len(keys)
+        if not len(keys):
+            return self.lastUsed[mname][key]
+        res=[]
+        for k in keys :
+            if k not in self.lastUsed[mname][key]:
+                res.append(None)
+            else :
+                res.append(self.lastUsed[mname][key][k])
+        return res
 
     def renderDynamic(self,traj,timeWidget=False,timeLapse=5):
         """
@@ -1956,7 +2346,7 @@ class epmvAdaptor:
         #lcol = self.colorMap(colormap='rgb256',mini=-datadev,
         #                     maxi=datadev,values=data,filename=cmap)
         from DejaVu.colorTool import Map
-        from pyubic import colors
+        from upy import colors
         ramp = colors.ThreeColorRamp(col1=col1,col2=col2,col3=col3)
         lcol = Map(data, ramp,mini=-datadev, maxi=datadev)
 #        if self.soft =="c4d":
@@ -2044,8 +2434,8 @@ class epmvAdaptor:
         import types
         if colormap is None:
             pass#colormap = RGBARamp
-        elif type(colormap) is types.StringType \
-          and self.mv.colorMaps.has_key(colormap):
+        elif type(colormap) is bytes \
+          and colormap in self.mv.colorMaps:
             colormap = self.mv.colorMaps[colormap]
         if not isinstance(colormap, ColorMap):
             return 'ERROR'
@@ -2072,10 +2462,10 @@ class epmvAdaptor:
         #epmv.setEnvPyRosetta(path)
         os.environ["PYROSETTA"]=extensionPath
         os.environ["PYROSETTA_DATABASE"]=extensionPath+os.sep+"minirosetta_database"
-        if not os.environ.has_key("DYLD_LIBRARY_PATH"):
+        if "DYLD_LIBRARY_PATH" not in os.environ:
             os.environ["DYLD_LIBRARY_PATH"]=""
         os.environ["DYLD_LIBRARY_PATH"]=extensionPath+":"+extensionPath+"/rosetta:"+os.environ["DYLD_LIBRARY_PATH"]
-        if not os.environ.has_key("LD_LIBRARY_PATH"):
+        if "LD_LIBRARY_PATH" not in os.environ:
             os.environ["LD_LIBRARY_PATH"]=""
         os.environ["LD_LIBRARY_PATH"]=extensionPath+"/rosetta:"+os.environ["LD_LIBRARY_PATH"]
         #this is not working! how can I do it
@@ -2089,36 +2479,38 @@ class epmvAdaptor:
         for i,ext in enumerate(self.inst.extensions):
             if self.inst.extdir[i] not in sys.path :
                 sys.path.append(self.inst.extdir[i])
-                if ext.lower() == 'modeller' : #what about windows? doesnt matter
-                    sys.path.append(self.inst.extdir[i]+"/python2.5")
+                if ext.lower() == 'modeller' : #what about windows? with 9.10
+                    sys.path.insert(1,self.inst.extdir[i]+"/modlib")
+                    sys.path.insert(1,self.inst.extdir[i]+"/lib")
+                    sys.path.insert(1,self.inst.extdir[i]+"/lib/mac10v4")
         if not self.useModeller :
             try :
                 import modeller
                 self._modeller = True
                 listExtension.append('modeller')
             except:
-                print "noModeller"
+                print("noModeller")
         if not self._AF:
             try :
                 import AutoFill
                 self._AF = True
                 listExtension.append('AutoFill')
             except:
-                print "noAutoFill"
+                print("noAutoFill")
         if not self._AR:
             try :
                 import ARViewer
                 self._AR = True
                 listExtension.append('ARViewer')
             except:
-                print "noARViewer"
+                print("noARViewer")
         if not self._pymol:
             try :
                 import chempy
                 self._pymol= True
                 listExtension.append('PyMol')
             except :
-                print "no pymol"
+                print("no pymol")
         return listExtension
 
     #from the helper, may change in c4d, maya to check
@@ -2157,23 +2549,25 @@ class epmvAdaptor:
 
     def parseObjectName(self,o):
         import re
-        if type(o) == str or type(o) == unicode : name=o
+        if type(o) == str or type(o) == str : name=o
         else : name=self.helper.getName(o)
-        tmp=name.split("_")
-        if len(tmp) == 1 : #no "_" so not cpk (S_) or ball (B_) stick (T_) or Mesh (Mesh_)
-            return ""
-        else :
-            if tmp[0] == "S" or tmp[0] == "B" : #balls or cpk
-                if len(tmp) == 3 or len(tmp) > 5: #molname include '_'
-                    hiearchy=name[2:].split(":")
-                else :
-                    hiearchy=tmp[1].split(":") #B_MOL:CHAIN:RESIDUE:ATOMS
-                    if len(hiearchy) == 1 :
-                        hiearchy=tmp[1:]
-                atn = hiearchy[-1]
-#                print "atn",atn
-                hiearchy[-1] = atn.split("n")[0].replace('b',"'") #problem some atom have number.
-                return hiearchy
+        if name[0] in ["S","B","T"]:
+            h = self.splitName(name) #h isprefix,molname,chname,resname,rnum,atmnanme
+            atn = h[-1]
+            h[-1] = atn.replace('b',"'")
+            #h[3] is one letter_code
+            return [h[1],h[2],h[4],h[5]]
+#            if tmp[0] == "S" or tmp[0] == "B" : #balls or cpk
+#                if len(tmp) == 3 or len(tmp) > 5: #molname include '_'
+#                    hiearchy=name[2:].split(":")
+#                else :
+#                    hiearchy=tmp[1].split(":") #B.MOL.CHAIN.RESIDUE.ATOMS
+#                    if len(hiearchy) == 1 :
+#                        hiearchy=tmp[1:]
+#                atn = hiearchy[-1]
+##                print "atn",atn
+#                hiearchy[-1] = atn.split("n")[0].replace('b',"'") #problem some atom have number.
+#            return hiearchy
         return ""
         
     def parseName(self,o):
@@ -2185,56 +2579,89 @@ class epmvAdaptor:
             if len(hiearchy) == 1 : return [name,""]
             else : return hiearchy
         else :
-            hiearchy=tmp[0].split(":") #B_MOL:CHAIN:RESIDUE:ATOMS        
+            hiearchy=tmp[0].split(":") #B_MOL:CHAIN:RESIDUE:ATOMS->i:j:        
             return hiearchy
 
+    def getIndiceMol(self,molname):
+        for k in self.molDictionary:
+            if molname == self.molDictionary[k][0]:
+                return k,self.molDictionary[k][1]
+
     def bondNameRule(self,atom1,atom2,prefix):
-        mindice = self.mv.Mols.name.index(atom1.top.name)
-        chindice = self.mv.Mols[mindice].chains.name.index(atom1.parent.parent.name)
-        mindice2 = self.mv.Mols.name.index(atom2.top.name)
-        chindice2 = self.mv.Mols[mindice].chains.name.index(atom2.parent.parent.name)
+        sep="."
+        if self.host == "maya":
+            sep = "_"        
+        mindice,mvindice = self.getIndiceMol(atom1.top.name)#self.mv.Mols.name.index(atom1.top.name) #self.molDictionary
+        chindice = self.mv.Mols[mvindice].chains.name.index(atom1.parent.parent.name)
+        mindice2 ,mvindice = self.getIndiceMol(atom2.top.name)# self.mv.Mols.name.index(atom2.top.name)
+        chindice2 = self.mv.Mols[mvindice].chains.name.index(atom2.parent.parent.name)
         if chindice != chindice2 :
-            print "different chain for the bonds atoms ?"
-        name1=prefix+"."+str(mindice)+"."+str(chindice)+"."+util.changeR(atom1.parent.name)+"."+atom1.name+"."+atom2.name
-        name2=prefix+"."+str(mindice)+"."+str(chindice)+"."+util.changeR(atom1.parent.name)+"."+atom2.name+"."+atom1.name
+            print("different chain for the bonds atoms ?")
+        mol = str(mindice)
+        ch = str(chindice)
+        if self.usefullname:
+            mol = atom1.top.name
+            ch = atom1.parent.parent.name        
+        name1=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom1.name+sep+str(atom1.number)+sep+atom2.name+sep+str(atom2.number)
+        name2=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom2.name+sep+str(atom2.number)+sep+atom1.name+sep+str(atom1.number)
         return name1.replace("'","b"),name2.replace("'","b")
         
     def atomNameRule(self,atom,prefix):
-        #atom.full_name return molname:chainename:resnameresnumber:atomname
-        #example : '1crn:A:THR1:N'
-        #maya
-        #return prefix+"_"+atom.full_name().replace(":","_").replace(" ","_").replace("'","b")+"n"+str(atom.number)
-        #S.0.A.ALA1.N
-        #name = prefix+"_"+atom.full_name().replace("'","b")+"n"+str(atom.number)
-        mindice = self.mv.Mols.name.index(atom.top.name)
-        chindice = self.mv.Mols[mindice].chains.name.index(atom.parent.parent.name)
-        fname = str(mindice)+"."+str(chindice)+"."+atom.parent.name+"."+atom.name
-        cleaned = fname.replace(":",".").replace(" ",".").replace("'","b")
-        name = prefix+"."+cleaned+"."+str(atom.number)
-        return name
+        #problem if I delete a molecule
+        sep="."
+        if self.host == "maya":
+            sep = "_"
+        mindice,mvindice = self.getIndiceMol(atom.top.name)
+        #mindice = self.mv.Mols.name.index(atom.top.name)
+        chindice = self.mv.Mols[mvindice].chains.name.index(atom.parent.parent.name)
+        mol = str(mindice)
+        ch = str(chindice)
+        if self.usefullname:
+            mol = atom.top.name
+            ch = atom.parent.parent.name
+        fname = mol+sep+ch+sep+util.changeR(atom.parent.name)+sep+atom.name
+        cleaned = fname.replace(":",sep).replace(" ",sep).replace("'","b")
+        name = prefix+sep+cleaned+sep+str(atom.number)
+        return name        
 
     def splitName(self,name):
         #general function-> in the adaptor ?
         #this function is overwrite in maya
         #depentd on atom name rules
+        sep="."
+        if self.host == "maya":
+            sep = "_"
         if name[0] == "T" : 
-            tmp=name.split(".") #'S.0.A.T1.N.0'
+            tmp=name.split(sep) #'S.0.A.T1.N.0'
             indice=tmp[0]
-            molname=self.mv.Mols[int(tmp[1])].name
-            chainname=self.mv.Mols[int(tmp[1])].chains[int(tmp[2])].name
+            if not self.usefullname:
+                #check indice in self.molDictionary,tmp1 is the molDictionary indice
+                mindice = self.molDictionary[int(tmp[1])][1]
+                molname=self.mv.Mols[mindice].name
+                chainname=self.mv.Mols[int(tmp[1])].chains[int(tmp[2])].name
+            else :
+                molname=tmp[1]
+                chainname=tmp[2]
             residuename=tmp[3][0:1]
             residuenumber=tmp[3][1:]
             atomname1=tmp[4]            
             return [indice,tmp[1],tmp[2],tmp[3][0:1],tmp[3][1:],tmp[4]]
-        else :
-            tmp=name.split(".") #'S.0.A.THR1.N.1'
+        elif name[0] in ["S","B","L"] :
+            tmp=name.split(sep) #'S.0.A.THR1.N.1'
             indice=tmp[0]
-            molname=self.mv.Mols[int(tmp[1])].name
-            chainname=self.mv.Mols[int(tmp[1])].chains[int(tmp[2])].name
-            residuename=tmp[3][0:3]
-            residuenumber=tmp[3][3:]
+            if self.usefullname:            
+                molname=tmp[1]
+                chainname=tmp[2]
+            else :
+                mindice = self.molDictionary[int(tmp[1])][1]
+                molname=self.mv.Mols[mindice].name
+                chainname=self.mv.Mols[int(tmp[1])].chains[int(tmp[2])].name
+            residuename=tmp[3][0:1]
+            residuenumber=tmp[3][1:]
             atomname=tmp[4]
             return [indice,molname,chainname,residuename,residuenumber,atomname]
+        else :
+            print("splitname",name)
 
     def _addObjToGeom(self,obj,geom):
         if type(obj) == list or type(obj) == tuple:
@@ -2249,7 +2676,7 @@ class epmvAdaptor:
                         geom.mesh=obj[1][:]
                     elif type(obj[1]) == dict :
                         geom.mesh={}                                                
-                        for me in obj[1].keys():
+                        for me in list(obj[1].keys()):
                             geom.mesh[me]=self.helper.getName(obj[1][me])
                     else :
                         geom.mesh=self.helper.getName(obj[1])
@@ -2288,8 +2715,8 @@ class epmvAdaptor:
     def getAtomMaterial(self,atomname):
         mat= self.helper.getMaterial("anyatom")
         try :
-            if atomname not in AtomElements.keys() and \
-                atomname not in DavidGoodsell.keys() and \
+            if atomname not in list(AtomElements.keys()) and \
+                atomname not in list(DavidGoodsell.keys()) and \
                 atomname != 'M':
                 mat= self.helper.getMaterial('A')
             else :
@@ -2323,74 +2750,83 @@ class epmvAdaptor:
         names=self.splitName(self.helper.getName(o))
         #print "current mat ", matname,names
         newmat = None
-        self.changeMaterialSchemColor(typeMat)
         if typeMat == "" :#material by colorname-> function from rgb give color name...
             mat = self.helper.retrieveColorMat(color)
+            #strange....why the "c" broke maya?
+            e = "c"
+            if self.host == "maya":
+                e=""
             if mat is None :  
                 mat = self.helper.getMaterial("rgb"+str(color[0])[0:3]+"_"+\
-                                str(color[1])[0:3]+"_"+str(color[2])[0:3])
+                                str(color[1])[0:3]+"_"+str(color[2])[0:3]+e)
                 if mat is None :
                     mat = self.helper.addMaterial("rgb"+str(color[0])[0:3]+\
-                        "_"+str(color[1])[0:3]+"_"+str(color[2])[0:3],color)
+                        "_"+str(color[1])[0:3]+"_"+str(color[2])[0:3]+e,color)
             self.helper.assignMaterial(o,[mat])
             newmat = mat
-        elif typeMat == "ByProp" : #color by color
-#                if parent != None : 
-#                    requiredMatname = 'mat'+parent#.name #exemple mat_molname_cpk
-#                else : 
-#                    requiredMatname = 'mat'+self.getName(o)##exemple mat_coil1a_molname
-#                if typeMat == "ByProp": 
-            requiredMatname = 'mat'+self.helper.getName(o)
-#            print 'required ',requiredMatname
-            #print parent.name,o.name,requiredMatname
-            if matname != requiredMatname : 
-                 #print requiredMatname
-                if requiredMatname not in matlist: 
-                    mat = self.helper.addMaterial(requiredMatname,color)
-                    self.helper.assignMaterial(o,[mat])
+        else :
+            self.changeMaterialSchemColor(typeMat)
+            if typeMat == "ByProp" : #color by color
+    #                if parent != None : 
+    #                    requiredMatname = 'mat'+parent#.name #exemple mat_molname_cpk
+    #                else : 
+    #                    requiredMatname = 'mat'+self.getName(o)##exemple mat_coil1a_molname
+    #                if typeMat == "ByProp": 
+                requiredMatname = self.helper.getName(o)+'mat'
+    #            print 'required ',requiredMatname
+                #print parent.name,o.name,requiredMatname
+                if matname != requiredMatname : 
+                     #print requiredMatname
+                    if requiredMatname not in matlist: 
+                        mat = self.helper.addMaterial(requiredMatname,color)
+                        self.helper.assignMaterial(o,[mat])
+                    else : 
+                        self.helper.colorMaterial(requiredMatname,color)
+                        mat = self.helper.getMaterial(requiredMatname)
+                        if mat is None:
+                            mat = self.helper.addMaterial(requiredMatname,color)
+                        self.helper.assignMaterial(o,[mat])
                 else : 
                     self.helper.colorMaterial(requiredMatname,color)
-                    mat = self.helper.getMaterial(requiredMatname)
-                    if mat is None:
-                        mat = self.helper.addMaterial(requiredMatname,color)
-                    self.helper.assignMaterial(o,[mat])
-            else : 
-                self.helper.colorMaterial(requiredMatname,color)
-            newmat = requiredMatname
-        elif typeMat == "ByAtom" :
-#            print matname
-            if str(matname) not in self.AtmRadi.keys() : #switch to atom materials
-                #print names[5][0]
-                if names[5][0] not in AtomElements.keys() : 
+                newmat = requiredMatname
+            elif typeMat == "ByAtom" :
+    #            print matname
+                if str(matname) not in list(self.AtmRadi.keys()) : #switch to atom materials
+                    #print names[5][0]
+                    if names[5][0] not in list(AtomElements.keys()) : 
+                        self.helper.assignMaterial(o,[self.helper.getMaterial('A')])
+                    else :
+                        mat = self.helper.getMaterial(names[5][0])
+                        self.helper.assignMaterial(o,[self.helper.getMaterial(names[5][0])])
+    #            else :
+    #                self.helper.colorMaterial(matname,AtomElements[names[5][0]])
+                newmat = names[5][0]
+            elif typeMat =="AtomsU" :
+                name = self.lookupDGFunc(atom)
+                if name not in list(DavidGoodsell.keys()) : 
                     self.helper.assignMaterial(o,[self.helper.getMaterial('A')])
-                else :
-                    mat = self.helper.getMaterial(names[5][0])
-                    self.helper.assignMaterial(o,[self.helper.getMaterial(names[5][0])])
-#            else :
-#                self.helper.colorMaterial(matname,AtomElements[names[5][0]])
-            newmat = names[5][0]
-        elif typeMat =="AtomsU" :
-            name = self.lookupDGFunc(atom)
-            if name not in DavidGoodsell.keys() : 
-                self.helper.assignMaterial(o,[self.helper.getMaterial('A')])
-            else :            
-                self.helper.assignMaterial(o,[self.helper.getMaterial(name)])
-        elif typeMat == "ByResi" or typeMat == "Residu":
-            rname = res.type.replace(" ","")
-            if rname in ['A', 'C', 'G', 'T', 'U'] :
-                rname = 'D'+rname            
-            if matname not in self.RasmolAminocorrected.keys():
-                if rname not in self.RasmolAminocorrected.keys(): rname='hetatm'
-                self.helper.assignMaterial(o,[self.helper.getMaterial(rname)])
-            newmat = rname
-        elif typeMat == "BySeco" :
-            if matname not in self.ssk : #switch to ss materials
-                self.helper.assignMaterial(o,[self.helper.getMaterial(ss[0:4])])
-            newmat = ss[0:4]
-        elif typeMat == "ByChai" :
-            if matname is not self.helper.getMaterialName(ch.material) : #switch to ch materials
-                self.helper.assignMaterial(o,[ch.material])
-            newmat = ch.material
+                else :            
+                    self.helper.assignMaterial(o,[self.helper.getMaterial(name)])
+            elif typeMat == "ByResi" or typeMat == "Residu":
+                rname = res.type.replace(" ","")
+                if rname in ['A', 'C', 'G', 'T', 'U'] :
+                    rname = 'D'+rname            
+                if matname not in list(self.RasmolAminocorrected.keys()):
+                    if rname not in list(self.RasmolAminocorrected.keys()): rname='hetatm'
+                    self.helper.assignMaterial(o,[self.helper.getMaterial(rname)])
+                newmat = rname
+            elif typeMat == "BySeco" :
+                if matname not in self.ssk : #switch to ss materials
+                    self.helper.assignMaterial(o,[self.helper.getMaterial(ss[0:4])])
+                newmat = ss[0:4]
+            elif typeMat == "ByChai" :
+                if matname is not ch.material : #switch to ch materials
+                    chmat = self.helper.getMaterial(ch.material)
+                    if chmat == None :
+                        ch_colors = self.mv.colorByChains.palette.lookup(mol.chains)
+                        chmat = self.helper.addMaterial(ch.material,ch_colors[ch.number])
+                    self.helper.assignMaterial(o,[chmat])
+                newmat = chmat
 
         #assign linking material for object
 #        if self.host == 'maya' :
@@ -2401,17 +2837,17 @@ class epmvAdaptor:
                     
     def changeMaterialSchemColor(self,typeMat):
         if typeMat == "ByAtom":
-            [self.helper.colorMaterial(atms,AtomElements[atms]) for atms in AtomElements.keys()]
+            [self.helper.colorMaterial(atms,AtomElements[atms]) for atms in list(AtomElements.keys())]
         elif typeMat == "AtomsU" :
-            [self.helper.colorMaterial(atms,DavidGoodsell[atms]) for atms in DavidGoodsell.keys()] 
+            [self.helper.colorMaterial(atms,DavidGoodsell[atms]) for atms in list(DavidGoodsell.keys())] 
         elif typeMat == "ByResi":
             [self.helper.colorMaterial(res.strip(),self.RasmolAminocorrected[res]) \
-               for res in self.RasmolAminocorrected.keys() ]
+               for res in list(self.RasmolAminocorrected.keys()) ]
         elif typeMat == "Residu":
-            [self.helper.colorMaterial(res,Shapely[res]) for res in Shapely.keys()] 
+            [self.helper.colorMaterial(res,Shapely[res]) for res in list(Shapely.keys())] 
         elif typeMat == "BySeco":
             [self.helper.colorMaterial(ss[0:4],SecondaryStructureType[ss]) \
-                for ss in SecondaryStructureType.keys()] 
+                for ss in list(SecondaryStructureType.keys())] 
         else : pass
 
     def oneStick(self,atm1,atm2,hiera,instance,parent,n=None):
@@ -2424,7 +2860,7 @@ class epmvAdaptor:
 #        if n is not None :
 #            name = n+name
         mat = self.helper.getMaterial('sticks')
-        obj=self.helper.oneCylinder(name,c0,c1,instance,material=mat,parent=parent)
+        obj=self.helper.oneCylinder(name,c0,c1,instance=instance,material=mat,parent=parent)
         #if parent is not None : self.helper.reParent([obj,],parent)
         #self.helper.toggleDisplay(obj,display=False)
         return obj
@@ -2434,37 +2870,32 @@ class epmvAdaptor:
         c0=numpy.array(atm1.coords)
         c1=numpy.array(atm2.coords)
         vect = c1 - c0
-    #    name1="T_"+atm1.full_name()+"_"+atm2.name
-    #    name2="T_"+atm2.full_name()+"_"+atm1.name
         n1=atm1.full_name().split(":")
         n2=atm2.full_name().split(":")
         #should use the 1lettercode for residues to gain some space
         #ResidueSetSelector.r_keyD
         name1,name2 = self.bondNameRule(atm1,atm2,"T")        
-#        name1="T_"+mol.name+"_"+n1[1]+"_"+util.changeR(n1[2])+"_"+n1[3]+"_"+atm2.name
-#        name2="T_"+mol.name+"_"+n2[1]+"_"+util.changeR(n2[2])+"_"+n2[3]+"_"+atm1.name
-#        name1 = name1.replace("'","b")
-#        name2 = name2.replace("'","b")
-    #    name1="T_"+n1[1]+"_"+n1[2]+"_"+n1[3]+"_"+atm2.name
-    #    name2="T_"+n2[1]+"_"+n2[2]+"_"+n2[3]+"_"+atm1.name
-        if atm1.name[0] not in AtomElements.keys() : atN="A"
+        if atm1.name[0] not in list(AtomElements.keys()) : atN="A"
         else : atN = atm1.name[0]
         mat = self.helper.getMaterial(atN)
         if mat == None :
             mat = self.helper.addMaterial(atm1.name[0],[0.,0.,0.])
-        obj1=self.helper.oneCylinder(name1,c0,(c0+(vect/2.)),instance,
+
+        obj1=self.helper.oneCylinder(name1,c0,(c0+(vect/2.)),instance=instance,
                                     material=mat,parent=parent)
-        if atm2.name[0] not in AtomElements.keys() : atN="A"
+        if atm2.name[0] not in list(AtomElements.keys()) : atN="A"
         else : atN = atm2.name[0]
         mat = self.helper.getMaterial(atN)
         if mat == None :
             mat = self.helper.addMaterial(atm2.name[0],[0.,0.,0.])
-        obj2=self.helper.oneCylinder(name2,(c0+(vect/2.)),c1,instance,
+        #print c0
+        obj2=self.helper.oneCylinder(name2,(c0+(vect/2.)),c1,instance=instance,
                                     material=mat,parent=parent)
         #if parent is not None : self.helper.reParent([obj1,obj2],parent)
         self.helper.toggleDisplay(obj1,display=False)
         self.helper.toggleDisplay(obj2,display=False)
-        return obj1,obj2    
+#        print "."
+#        return obj1,obj2    
 
     def _Tube(self,set,sel,points,faces,scn,armObj,res=32,size=0.25,sc=2.,join=0,
              instance=None,hiera = 'perRes',bicyl=False,pb=False):
@@ -2482,18 +2913,23 @@ class epmvAdaptor:
                 self.helper.toggleDisplay(parent,False)
             instance=self.helper.newEmpty(mol.name+"_b_sticks_shape")
             self.helper.addObjectToScene(sc,instance,parent=parent)
-            cyl = self.helper.Cylinder(mol.name+"_b_sticks_o",res=res)
+            cyl = self.helper.Cylinder(mol.name+"_b_sticks_o",res=res)[0]#the objec
             self.helper.reParent(cyl,instance)
 #            self.helper.toggleDisplay(cyl,display=False)
-            if self.host == "blender":
-                baseCyl= self.helper.Cylinder("baseCyl",radius=1.,length=1.,res=res)
+            if self.host.find("blender") != -1:
+                rad = 1.0
+                if self.host == "blender24":
+                    rad = 0.5
+                baseCyl,baseCylMesh= self.helper.Cylinder("baseCyl",radius=rad,length=1.,res=res)
                 self.helper.toggleDisplay(baseCyl,display=False)
+                self.helper.toggleDisplay(cyl,display=False)
                 instance = self.helper.getMesh("mesh_"+mol.name+"_b_sticks_o")
             elif self.host == "maya":
 #                self.helper.toggleDisplay(cyl,display=False)
                 instance = cyl
             elif self.host == "c4d": 
-                instance = parent
+                instance = instance
+                self.helper.toggleDisplay(parent,display=False)
         for c in mol.chains:
             stick=[]
             bonds, atnobnd = c.residues.atoms.bonds
@@ -2506,6 +2942,12 @@ class epmvAdaptor:
                 self._progressBar(0., 'creating bonds sticks')
             stick = []
             if bicyl :
+                stick = []
+#                for bond in bonds:
+#                    print bond.atom1,bond.atom2
+#                    s=self.biStick(bond.atom1,bond.atom2,
+#                                hiera,instance,parent=parent)
+#                    stick.append(s)
                 stick = [self.biStick(bond.atom1,bond.atom2,
                                 hiera,instance,parent=parent) for bond in bonds] 
             else :
@@ -2608,15 +3050,21 @@ class epmvAdaptor:
             if mat is None :
                 mat = self.helper.getMaterial("A")
 #            print mat
-            sph=self.helper.newInstance(name+at1.full_name(),basesphere,location=at1.coords)
-            self.helper.addObjectToScene(sc,sph,parent=parent)
+            n = self.atomNameRule(at1,"L"+name)
+            sph=self.helper.newInstance(n,basesphere,
+                                        location=at1.coords,parent=parent)
+#            self.helper.addObjectToScene(sc,sph,parent=parent)
             self.helper.assignMaterial(sph,mat)
             if bilader :
-                sph=self.helper.newInstance(name+at2.full_name(),basesphere,location=at2.coords)
-                self.helper.addObjectToScene(sc,sph,parent=parent)
+                n = self.atomNameRule(at2,"L"+name)
+                sph=self.helper.newInstance(n,basesphere,
+                                            location=at2.coords,parent=parent)
+#                self.helper.addObjectToScene(sc,sph,parent=parent)
                 self.helper.assignMaterial(sph,mat)
-            sph=self.helper.newInstance(name+at3.full_name(),basesphere,location=at3.coords)
-            self.helper.addObjectToScene(sc,sph,parent=parent)
+            n = self.atomNameRule(at3,"L"+name)
+            sph=self.helper.newInstance(n,basesphere,
+                                        location=at3.coords,parent=parent)
+#            self.helper.addObjectToScene(sc,sph,parent=parent)
             self.helper.assignMaterial(sph,mat)
 
             if bilader :
@@ -2701,8 +3149,8 @@ class epmvAdaptor:
     	    parent = self.helper.getObject(chains.full_name())	
     	    #print parent		
     	    bonds, atnobnd = chains.residues.atoms.bonds
-    	    indices = map(lambda x: (x.atom1._bndIndex_,
-    								x.atom2._bndIndex_), bonds)
+    	    indices = [(x.atom1._bndIndex_,
+    								x.atom2._bndIndex_) for x in bonds]
     	    self.helper.updatePoly(lines,vertices=chains.residues.atoms.coords,faces=indices)
 
     def _updateMesh(self,geom):
@@ -2730,7 +3178,7 @@ class epmvAdaptor:
             segments = 25
             rings = 25"""
         #names=NMesh.GetNames()
-        for name in geom.mesh.values(): 
+        for name in list(geom.mesh.values()): 
 #            print name
 #            basemesh =  self.helper.getMesh("mesh_basesphere")
             if name[-1] not in self.AtmRadi :
@@ -2756,13 +3204,27 @@ class epmvAdaptor:
             mol.allAtoms.updateCoords(vt,ind=index)
         elif types == 'lines':
             vt=self.updateMolAtomCoordLines(mol)
+#            print vt[0]
             mol.allAtoms.updateCoords(vt,ind=index)
         elif types == 'bones':
             vt=self.updateMolAtomCoordBones(mol)
-            mol.allAtoms.get("CA").updateCoords(vt,ind=index)
+            #update lsel
+            lsel = mol.geomContainer.geoms["armature"][2]
+            if isinstance(lsel,AtomSet) :
+#                print len(lsel),len(vt)
+#                print lsel
+                lsel.updateCoords(vt,ind=index)
+            else :
+                pass
         elif types =='spline':
             vt=self.updateMolAtomCoordSpline(mol)
-            mol.allAtoms.get("CA").updateCoords(vt,ind=index)
+            for i,c in enumerate(mol.chains):
+                if c.ribbonType()=='NA':
+                    lsel = c.residues.atoms.get("O5'")
+                else :
+                    lsel = c.residues.atoms.get("CA")
+#                print len(lsel),len(vt),len(vt[i])
+                lsel.updateCoords(vt[i],ind=index)
 
     def updateMolAtomCoordCPK(self,mol):
         """
@@ -2789,7 +3251,7 @@ class epmvAdaptor:
         if s is not None :
             #print s.GetName()
             if self.helper.getType(s) == self.helper.SPLINE :
-                print "ok Spline"
+                print("ok Spline")
                 #select = s.GetSelectedPoints()#mode=P_BASESELECT)#GetPointAllAllelection();
                 #print nb_points
                 #selected = select.get_all(s.GetPointCount()) # 0 uns | 1 selected
@@ -2801,11 +3263,12 @@ class epmvAdaptor:
                     self.helper.getType(s) == self.helper.INSTANCE or \
                     self.helper.getType(s) == self.helper.SPLINE or \
                     self.helper.getType(s) == self.helper.BONES or \
+                    self.helper.getType(s) == self.helper.POLYGON or \
                     self.helper.getType(s) == self.helper.IK :
 #                print "ok null" 
                 #molname or molname:chainname or molname:chain_ss ...
                 hi = self.parseName(self.helper.getName(s))
-                #print "parsed ",hi
+#                print "parsed ",hi
                 if len(hi) == 1:
                     hi=[hi[0],""]
                 molname = hi[0]
@@ -2843,7 +3306,10 @@ class epmvAdaptor:
                         rec = mv.energy.current_scorer.mol1
                         lig = mv.energy.current_scorer.mol2
                         if rec.name == molname or lig.name == molname:
-                            self.updateMolAtomCoord(rec,rec.cconformationIndex,types='cpk')
+                            use="cpk"
+                            if self.host != "maya":
+                                use="lines"
+                            self.updateMolAtomCoord(rec,rec.cconformationIndex,types=use)
                             #mv.displayCPK(rec,redo=1)
                             self.updateMolAtomCoord(lig,lig.cconformationIndex,types='cpk')
                         if mv.energy.realTime:
@@ -2877,6 +3343,8 @@ class epmvAdaptor:
                                 #conjugate_gradients
                                 mol.pmvaction.modellerOptimize(mol.pmvaction.mdstep,
                                                                mol.pmvaction.temp) #optimize and update coords
+#                        else :
+#                            self.updateMolAtomCoord(mol,1,types="")
                 
 
     def colorByEnergy(self,atomSet,scorer,property):
@@ -2892,7 +3360,7 @@ class epmvAdaptor:
 #        print status
         if status is None: return
 #        print energy.current_scorer.score
-        if hasattr(energy,'labels'):
+        if hasattr(energy,'labels') and energy.label:
             self.helper.updateText( energy.labels[0],
                     string="score :"+str(energy.current_scorer.score)[0:5])
             for i,term in enumerate(['el','hb','vw','so']):
@@ -2914,3 +3382,182 @@ class epmvAdaptor:
                 atomSet2 = self.mv.expandNodes(scorer.mol2.name).findType(Atom) # we pick the ligand
                 if hasattr(atomSet2,scorer.prop):
                     self.colorByEnergy(atomSet2,scorer,property)
+    
+    def parse_PDB_BIOMT(self,allLines):
+        #self.PDBtags[33] REMARK
+        #self.allLines
+        #
+        rem4 = [x for x in allLines if x[:18] == 'REMARK 350   BIOMT']
+        lmatrix={}
+        for l in rem4:
+            spl = l.split()
+            symOpNum = int(spl[3])# int(l[20:23]) #id of matrice
+            #1  1.000000  0.000000  0.000000        0.00000
+            #id x y z x
+            if symOpNum not in lmatrix:
+                lmatrix[symOpNum] = []
+            symx = float(spl[4])#float(l[23:33])
+            symy = float(spl[5])#float(l[33:43])
+            symz = float(spl[6])#float(l[43:53])
+            tr = float(spl[7])#float(l[53:])
+            lmatrix[symOpNum].append([symx,symy,symz,tr])
+            #ostr = "%5d\t%.3f\t%.3f\t%.3f\n" %(symOpNum, symx, symy, symz)
+            #fptr.write(ostr)
+            #ctr += 1   	
+            #print "%5d\t%.3f\t%.3f\t%.3f\n" %(symOpNum, symx, symy, symz)
+        return lmatrix                    
+
+
+#===============================================================================
+# extra function
+#===============================================================================
+    def getHBBase(self,res1,res2,uniq=False):
+        if uniq:
+            ats={"A":"N1","T":"N3","G":"N1","C":"N3","R":"N3"}#R is for CBR
+        else :
+            ats={"A":"N6,N1","T":"O4,N3","G":"N1,N2,O6","C":"N3,O2,N4","R":"N3,O2,N4"}#R is for CBR
+        ats1=res1.atoms.get(ats[res1.type[-1]])
+        ats2=res2.atoms.get(ats[res2.type[-1]])
+        return ats1,ats2
+
+    def getDNAHbonds(self,nodes,uniq=False):
+        #nodes should be the two dna chains
+        #HBonds DNA
+        #G=>N1,N2,O6 N3,N4,O2<=C
+        #O6-N4
+        #N1-N3
+        #N2-O2
+        #T=>O4,N3 N6,N1<=A    A
+        #O4-N6
+        #N3-N1
+        pairs={"A":"T","G":"C","T":"A","C":"G","R":"G"}
+        hbonds_list=[]#will be (at1,at2)
+        #need one cylinder per hbnonds
+        if not isinstance(nodes,ChainSet):
+            print("not chainset")
+            return
+        if not nodes[0].isDna() or not nodes[1].isDna():
+            print("not dna")
+            return
+        #should not have water residues
+        for i,res in enumerate(nodes[0].residues):#
+            paired = nodes[1].residues[-i-1]
+            #check the paired
+            print(res,res.type,paired,paired.type,pairs[res.type[-1]],paired.type[-1])
+            if pairs[res.type[-1]] != paired.type[-1]:
+                if res.type[-1] != "R" and paired.type[-1] != "R":
+                    return
+            atmspair = self.getHBBase(res,paired,uniq=uniq)
+            hbonds_list.append(atmspair)
+        return hbonds_list
+
+    def displayDNAHbonds(self,listHBatms,instance=None,bicyl=False,pb=False,
+                         res=32,size=0.25,sc=2.,hiera = 'perRes'):
+        #need a root parent
+        #need base shape
+        sc=self.helper.getCurrentScene()
+        instance=None
+        mol = listHBatms[0][0][0].top
+        ghbonds=[]
+        if instance == None:
+            #create mesh_baseBond
+            parent=self.helper.newEmpty(mol.name+"_b_hbonds")
+            self.helper.addObjectToScene(sc,parent,
+                        parent=mol.geomContainer.masterGeom.obj)
+            if self.host != "c4d":
+                self.helper.toggleDisplay(parent,False)
+            instance=self.helper.newEmpty(mol.name+"_b_hbonds_shape")
+            self.helper.addObjectToScene(sc,instance,parent=parent)
+            cyl = self.helper.Cylinder(mol.name+"_b_hbonds_o",res=res,radius=0.5)
+            self.helper.reParent(cyl,instance)
+#            self.helper.toggleDisplay(cyl,display=False)
+            if self.host.find("blender") != -1:
+                baseCyl= self.helper.Cylinder("baseCyl",radius=0.5,length=1.,res=res)
+                self.helper.toggleDisplay(baseCyl,display=False)
+                instance = self.helper.getMesh("mesh_"+mol.name+"_b_hbonds_o")
+            elif self.host == "maya":
+#                self.helper.toggleDisplay(cyl,display=False)
+                instance = cyl
+            elif self.host == "c4d": 
+                instance = parent        
+        
+        parent = self.helper.getObject(mol.name+"_hbonds")
+        if parent is None :
+            parent=self.helper.newEmpty(mol.name+"_hbonds")
+            self.helper.addObjectToScene(sc,parent,
+                        parent=mol.geomContainer.masterGeom.obj)
+        oneparent=True
+        if pb :
+            self._resetProgressBar()
+            self._progressBar(0., 'creating bonds sticks')
+        for paired in listHBatms:
+            atms1 = paired[0]
+            atms2 = paired[1]
+            for atm1,atm2 in zip(atms1,atms2):
+                if bicyl :
+                    bond = self.biStick(atm1,atm2,
+                                hiera,instance,parent=parent) 
+                else :
+                    bond = self.oneStick(atm1,atm2,
+                                hiera,instance,parent=parent)
+                ghbonds.append(bond)
+        return [ghbonds,instance]
+
+
+    def displayStruts(self,node,instance=None,bicyl=False,pb=False,
+                         res=32,size=0.25,sc=2.,hiera = 'perRes'):
+        #need a root parent
+        #need base shape
+        #node need to be atoms..
+        if not isinstance(node,AtomSet) : node = node.findType(Atom)
+        hbats = AtomSet(node.get(lambda x: hasattr(x, 'struts')))
+        print((hbats),hbats)
+        mol = node[0].top
+        sc=self.helper.getCurrentScene()
+        instance=None
+        gstruts=[]
+        if instance == None:
+            #create mesh_baseBond
+            parent=self.helper.newEmpty(mol.name+"_b_struts")
+            self.helper.addObjectToScene(sc,parent,
+                        parent=mol.geomContainer.masterGeom.obj)
+            if self.host != "c4d":
+                self.helper.toggleDisplay(parent,False)
+            instance=self.helper.newEmpty(mol.name+"_b_struts_shape")
+            self.helper.addObjectToScene(sc,instance,parent=parent)
+            cyl = self.helper.Cylinder(mol.name+"_b_struts_o",res=res,radius=0.5)
+            self.helper.reParent(cyl,instance)
+#            self.helper.toggleDisplay(cyl,display=False)
+            if self.host.find("blender") != -1:
+                baseCyl= self.helper.Cylinder("baseCyl",radius=0.5,length=1.,res=res)
+                self.helper.toggleDisplay(baseCyl,display=False)
+                instance = self.helper.getMesh("mesh_"+mol.name+"_b_struts_o")
+            elif self.host == "maya":
+#                self.helper.toggleDisplay(cyl,display=False)
+                instance = cyl
+            elif self.host == "c4d": 
+                instance = parent        
+        
+        parent = self.helper.getObject(mol.name+"_struts")
+        if parent is None :
+            parent=self.helper.newEmpty(mol.name+"_struts")
+            self.helper.addObjectToScene(sc,parent,
+                        parent=mol.geomContainer.masterGeom.obj)
+        oneparent=True
+        if pb :
+            self._resetProgressBar()
+            self._progressBar(0., 'creating struts sticks')
+        for struts in hbats:
+            for strut in struts.struts:
+                atm1 = strut.donAt
+                atm2 = strut.accAt
+            #for atm1,atm2 in zip(atms1,atms2):
+                if bicyl :
+                    bond = self.biStick(atm1,atm2,
+                                hiera,instance,parent=parent) 
+                else :
+                    bond = self.oneStick(atm1,atm2,
+                                hiera,instance,parent=parent)
+                gstruts.append(bond)
+        return [gstruts,instance]
+    

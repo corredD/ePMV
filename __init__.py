@@ -19,8 +19,10 @@ def epmv_start(soft,gui=False,debug=0):
     viewer and the helper.
     """    
 
-    if soft == 'blender':
-        from ePMV.blender.blenderAdaptor import blenderAdaptor as adaptor
+    if soft == 'blender24':
+        from ePMV.blender.v24.blenderAdaptor import blenderAdaptor as adaptor
+    elif soft == 'blender25':
+        from ePMV.blender.v25.blenderAdaptor import blenderAdaptor as adaptor
     elif soft=='c4d':
         from ePMV.cinema4d.c4dAdaptor import c4dAdaptor as adaptor
     elif soft=='maya':
@@ -37,4 +39,5 @@ def epmv_start(soft,gui=False,debug=0):
 #    elif soft == 'template':
 #        from Pmv.hostappInterface.Template.chimeraAdaptor import templateAdaptor as adaptor 
     #Start ePMV
+#    print ("start",adaptor,"soft",soft)
     return adaptor(gui=gui,debug=debug)

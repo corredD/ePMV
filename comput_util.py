@@ -121,10 +121,10 @@ def matrixToEuler(mat):
     bank = math.atan2(-mat[1][2],mat[1][1])
     attitude = math.asin(mat[1][0])
     if mat[0][0] < 0 :
-	if (attitude < 0.) and (math.degrees(attitude) > -90.):
-		attitude = -math.pi-attitude
-	elif (attitude > 0.) and (math.degrees(attitude) < 90.):
-		attitude = math.pi-attitude
+        if (attitude < 0.) and (math.degrees(attitude) > -90.):
+            attitude = -math.pi-attitude
+        elif (attitude > 0.) and (math.degrees(attitude) < 90.):
+            attitude = math.pi-attitude
     return (heading,attitude,bank)
 
 def eulerToMatrix(euler): #double heading, double attitude, double bank
@@ -343,8 +343,8 @@ def convertColor(col,toint=True):
     @return:  the converted color [0-1.,0-1.,0-1.] or [1-255,1-255,1-255]
     """
 
-    if toint and max(col)<=1.0: col = map( lambda x: x*255, col)
-    elif not toint and max(col)>1.0: col = map( lambda x: x/255., col)
+    if toint and max(col)<=1.0: col = [x*255 for x in col]
+    elif not toint and max(col)>1.0: col = [x/255. for x in col]
     return col
 
 DGatomIds=['ASPOD1','ASPOD2','GLUOE1','GLUOE2', 'SERHG',
@@ -388,14 +388,14 @@ def changeR(txt):
     rname = txt[0:3]
     rnum = txt[3:]
     if rname not in RasmolAminoSortedKeys :#ResidueSetSelector.r_keyD.keys() :
-        print rname
+        print(rname)
         rname=rname.replace(" ","")
         if len(rname) == 1 : 
             return rname+rnum
         return rname[1]+rnum
     else :
         rname=rname.replace(" ","")
-        if ResidueSetSelector.r_keyD.has_key(rname):
+        if rname in ResidueSetSelector.r_keyD:
             r1n=ResidueSetSelector.r_keyD[rname]
         else :
             r1n=rname
@@ -435,7 +435,7 @@ class EnergyHandler:
 
         if self.viewer.hasGui : self.viewer.infoBox.Set(visible=True)
         # we test if energy scorer already been setup
-        if self.data.has_key(n):
+        if n in self.data:
             self.current_scorer = self.data[n]
             return self.data[n]
 
@@ -461,8 +461,8 @@ class EnergyHandler:
         self.current_scorer = nrg
 
         if self.viewer.hasGui:
-            self.viewer.GUI.nrg_pairs_combobox.setlist(self.data.keys())
-            self.viewer.GUI.nrg_pairs_combobox.setentry(self.data.keys()[0])
+            self.viewer.GUI.nrg_pairs_combobox.setlist(list(self.data.keys()))
+            self.viewer.GUI.nrg_pairs_combobox.setentry(list(self.data.keys())[0])
 
 
         return nrg
@@ -471,7 +471,7 @@ class EnergyHandler:
         """ delete all the atoms pairs """
         self.current_scorer = None
         if self.viewer.hasGui:
-            self.viewer.GUI.nrg_pairs_combobox.setlist(self.data.keys())
+            self.viewer.GUI.nrg_pairs_combobox.setlist(list(self.data.keys()))
 
         ## ATTENTION the following code do create a segmentation fault
         ## FIX ME   AG 04/2007
@@ -498,7 +498,7 @@ class EnergyHandler:
         return True
 
     def save_conformations(self):
-        for nrg in self.data.values():
+        for nrg in list(self.data.values()):
             nrg.saveCoords()
 
 cAD=True
@@ -561,7 +561,7 @@ class EnergyScorer:
          """
         score_int= int(score*100)
         # check number of conf save
-        if len(self.confcoords.keys()) >= 50:
+        if len(list(self.confcoords.keys())) >= 50:
             # find highest energies
             val =max(self.confcoords.keys())
             del(self.confcoords[val])
@@ -580,7 +580,7 @@ class EnergyScorer:
         writer = PdbWriter()
         if score is None:
             score = min( self.confcoords.keys())
-        if not self.confcoords.has_key(float(score)): return
+        if float(score) not in self.confcoords: return
 
         c1 = self.confcoords[score][0]
         c2 = self.confcoords[score][1]
@@ -646,7 +646,7 @@ class TrilinterpEnergyScorer(EnergyScorer):
         #eg: stem = 'hsg1', atomtypes= ['C','A','HD','N','S']
         scorer = self.scorer = TrilinterpScorer(stem, atomtypes,readMaps=True)
         self.scorer.set_molecular_system(self.ms)
-	self.prop='Trilinterp'
+        self.prop='Trilinterp'
         self.scorer.prop = self.prop
         self.grid_obj = None
 
@@ -682,16 +682,16 @@ class TrilinterpEnergyScorer(EnergyScorer):
         score_array,terms_dic = self.scorer.get_score_array()
         self.scorer.labels_atoms_w_nrg(score_array)
 
-	self.score =score= min(Numeric.add.reduce(score_array),100.)
-	#self.score =score= min(self.scorer.get_score(),100.)
-	terms_score = terms_dic
+        self.score =score= min(Numeric.add.reduce(score_array),100.)
+        #self.score =score= min(self.scorer.get_score(),100.)
+        terms_score = terms_dic
         estat = min(round(Numeric.add.reduce(terms_score[0]),2),1000.)
         hbond = 0.#min(round(terms_score['m'],2),1000.)
         vdw   = min(round(Numeric.add.reduce(terms_score[1]),2),1000.)
         ds    = min(round(Numeric.add.reduce(terms_score[2]),2),1000.) #problem with ds
 
         #ds=ds-ds
-	#self.score = self.score -ds
+    #self.score = self.score -ds
 
         return (score,estat,hbond,vdw,ds)
 
@@ -892,8 +892,8 @@ class PairWiseEnergyScorer(EnergyScorer):
 
 
 
-from AutoDockTools.pyAutoDockCommands import pep_aromList
-
+#from AutoDockTools.pyAutoDockCommands import pep_aromList
+pep_aromList=[]
 class PyADCalcAD3Energies(EnergyScorer):
     """For each atom in one AtomSet, determine the autodock3 energy vs all the atoms in a second
     AtomSet
@@ -1113,7 +1113,7 @@ if cAD:
             score_array = self.scorer.get_score_array()
             self.scorer.labels_atoms_w_nrg(score_array)
             #ds=ds-ds
-    	    #self.score = self.score -ds
+            #self.score = self.score -ds
             return (self.score,estat,hbond,vdw,ds)
 
 
@@ -1317,18 +1317,18 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #
 #        if hasattr(at1,'pat') :
 #            pat1 = at1.pat[0]
-#	    if pat1 not in arviewer.current_context.patterns.keys(): continue
-#	    pat1 = arviewer.current_context.patterns[at1.pat[0]]
-#	    if not pat1.isdetected : continue
+#        if pat1 not in arviewer.current_context.patterns.keys(): continue
+#        pat1 = arviewer.current_context.patterns[at1.pat[0]]
+#        if not pat1.isdetected : continue
 #            #conf1 = arviewer.current_context.patterns[pat1].confNum
-#	    conf1 = pat1.confNum
+#        conf1 = pat1.confNum
 #        if hasattr(at2,'pat') :
 #            pat2 = at2.pat[0]
 #            if pat2 not in arviewer.current_context.patterns.keys(): continue
-#	    pat2 = arviewer.current_context.patterns[at2.pat[0]]
-#	    if not pat2.isdetected : continue
+#        pat2 = arviewer.current_context.patterns[at2.pat[0]]
+#        if not pat2.isdetected : continue
 #            #conf1 = arviewer.current_context.patterns[pat1].confNum
-#	    conf2 = pat2.confNum
+#        conf2 = pat2.confNum
 #        # check if atomset belong to a molecule that is part of
 #        # detected pattern
 #        #if at1.top not in arviewer.mol_detected: continue
@@ -1359,27 +1359,27 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #        labelStr.append(at1[0].name)
 #        labelStr.append(at2[0].name)
 #
-#	#if arviewer.patternMgr.mirror : arviewer.set_dist_geoms_mirror(vertices,centers,atm_dist_label)
+#    #if arviewer.patternMgr.mirror : arviewer.set_dist_geoms_mirror(vertices,centers,atm_dist_label)
 #        #else : arviewer.set_dist_geoms(vertices,centers,atm_dist_label)
-#	arviewer.set_dist_geoms(vertices,centers,atm_dist_label)
+#    arviewer.set_dist_geoms(vertices,centers,atm_dist_label)
 #
 #def test_measure_dist(arviewer):
 #    for i in range(len(arviewer.atoms_selected) -1):
 #        at1 = arviewer.atoms_selected[i]
 #        at2 = arviewer.atoms_selected[i+1]
-#	if at1.top[0] not in arviewer.mol_detected: return False
-#	if at2.top[0] not in arviewer.mol_detected: return False
+#    if at1.top[0] not in arviewer.mol_detected: return False
+#    if at2.top[0] not in arviewer.mol_detected: return False
 #        if hasattr(at1,'pat') :
 #            pat1 = at1.pat[0]
 #            if pat1 not in arviewer.current_context.patterns.keys(): return False
-#	    pat1 = arviewer.current_context.patterns[at1.pat[0]]
-#	    if not pat1.isdetected : return False
+#        pat1 = arviewer.current_context.patterns[at1.pat[0]]
+#        if not pat1.isdetected : return False
 #        if hasattr(at2,'pat') :
 #            pat2 = at2.pat[0]
 #            if pat2 not in arviewer.current_context.patterns.keys(): return False
-#	    pat1 = arviewer.current_context.patterns[at1.pat[0]]
-#	    if not pat1.isdetected : return False
-#   	return True
+#        pat1 = arviewer.current_context.patterns[at1.pat[0]]
+#        if not pat1.isdetected : return False
+#       return True
 #
 #
 #def measure_dist(arviewer):
@@ -1403,8 +1403,8 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #
 #        at1 = arviewer.atoms_selected[i]
 #        at2 = arviewer.atoms_selected[i+1]
-#	#print at1
-#	#print at2
+#    #print at1
+#    #print at2
 #        # set correct conformation to get coordinate of atom
 #        # check if pattern is detected
 #        conf1=0
@@ -1413,7 +1413,7 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #        #if at2.top not in arviewer.mol_detected: continue
 #
 #        if at1.top[0] not in arviewer.mol_detected:
-#	    continue
+#        continue
 #            g=at1.top[0].geomContainer.masterGeom
 #            #c1 = Numeric.array(at1[0].coords)
 #            c1 = g.ApplyParentsTransform(Numeric.array([at1[0].coords,]))
@@ -1422,10 +1422,10 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            #M=Numeric.reshape(mtr,(4,4))
 #            c1=Numeric.dot(c, M)[:, :3]
 #            c1=c1[0]
-#	    #print c1
+#        #print c1
 #        else :
 #            pat1 = arviewer.current_context.patterns[at1.pat[0]]
-#	    if not pat1.isdetected : continue
+#        if not pat1.isdetected : continue
 #            #pat1 = p[0]
 #            #print pat1.name
 #            conf1 = pat1.confNum
@@ -1440,9 +1440,9 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            c1=Numeric.dot(c, M)[:, :3]
 #            c1=c1[0]
 #            #c1=c1+tr
-#	    #print c1
+#        #print c1
 #        if at2.top[0] not in arviewer.mol_detected:
-#	    continue
+#        continue
 #            g=at2.top[0].geomContainer.masterGeom
 #            #c1 = Numeric.array(at1[0].coords)
 #            c2 = g.ApplyParentsTransform(Numeric.array([at2[0].coords,]))
@@ -1451,15 +1451,15 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            #M=Numeric.reshape(mtr,(4,4))
 #            c2=Numeric.dot(c, M)[:, :3]
 #            c2=c2[0]
-#	    #print c2
+#        #print c2
 #        else :
 #            #pat2 = p[0]
-#	    pat2 = arviewer.current_context.patterns[at2.pat[0]]
-#	    if not pat2.isdetected : continue
-#	    #print pat2.name
+#        pat2 = arviewer.current_context.patterns[at2.pat[0]]
+#        if not pat2.isdetected : continue
+#        #print pat2.name
 #            conf2 = pat2.confNum
 #            #at2.setConformation(conf2)
-#	    vt = util.transformedCoordinatesWithInstances(at2,pat2)
+#        vt = util.transformedCoordinatesWithInstances(at2,pat2)
 #            c2=Numeric.array(vt)
 #            #c2 = Numeric.array(at2[0].coords)
 #            #at2.setConformation(0)
@@ -1512,8 +1512,8 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #
 #        at1 = arviewer.atoms_selected[i]
 #        at2 = arviewer.atoms_selected[i+1]
-#	#print at1
-#	#print at2
+#    #print at1
+#    #print at2
 #        # set correct conformation to get coordinate of atom
 #        # check if pattern is detected
 #        conf1=0
@@ -1528,7 +1528,7 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            #M=Numeric.reshape(mtr,(4,4))
 #            c1=Numeric.dot(c, M)[:, :3]
 #            c1=c1[0]
-#	   # print c1
+#       # print c1
 #        else :
 #            pat1 = arviewer.current_context.patterns[at1.pat[0]]
 #            #pat1 = p[0]
@@ -1547,7 +1547,7 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            #c1=Numeric.dot(c, M)[:, :3]
 #            #c1=c1[0]
 #            #c1=c1-tr
-#	    #print c1
+#        #print c1
 #        if at2.top[0] not in arviewer.mol_detected:
 #            g=at2.top[0].geomContainer.masterGeom
 #            #c1 = Numeric.array(at1[0].coords)
@@ -1557,16 +1557,16 @@ class PyPairWiseEnergyScorer(EnergyScorer):
 #            #M=Numeric.reshape(mtr,(4,4))
 #            c2=Numeric.dot(c, M)[:, :3]
 #            c2=c2[0]
-#	    #print c2
+#        #print c2
 #        else :
 #            #pat2 = p[0]
-#	    pat2 = arviewer.current_context.patterns[at2.pat[0]]
-#	    #print pat2.name
+#        pat2 = arviewer.current_context.patterns[at2.pat[0]]
+#        #print pat2.name
 #            #f pat1 not in arviewer.current_context.patterns.keys(): continue
 #            conf2 = pat2.confNum
 #            vt = util.transformedCoordinatesWithInstances(at2,pat2)
 #            c2=Numeric.array(vt[0])
-#	   # print c2
+#       # print c2
 #            #at2.setConformation(conf2)
 #            #c2 = Numeric.array(at2[0].coords)
 #            #at2.setConformation(0)
@@ -1739,125 +1739,125 @@ def q_from_row_matrix(srcMatrix):
 
 
 def quat_to_ogl_matrix(srcQuat):
-	print "quat"
-	#For unit srcQuat, just set s = 2.0, or set xs = srcQuat[X] + srcQuat[X], etc.
-	s = 2.0 / ( srcQuat[X] * srcQuat[X] + srcQuat[Y] * srcQuat[Y] + srcQuat[Z] * srcQuat[Z] + srcQuat[W] * srcQuat[W] )
-	xs = srcQuat[X] * s
-	ys = srcQuat[Y] * s
-	zs = srcQuat[Z] * s
-	wx = srcQuat[W] * xs
-	wy = srcQuat[W] * ys
-	wz = srcQuat[W] * zs
-	xx = srcQuat[X] * xs
-	xy = srcQuat[X] * ys
-	xz = srcQuat[X] * zs
-	yy = srcQuat[Y] * ys
-	yz = srcQuat[Y] * zs
-	zz = srcQuat[Z] * zs
-	#set up 4x4 matrix
-	matrix=[]
-	matrix.append(1.0 - ( yy + zz ))
-	matrix.append(xy + wz)
-	matrix.append(xz - wy)
-	matrix.append(0.0)
-	matrix.append(xy - wz)
-	matrix.append(1.0 - ( xx + zz ))
-	matrix.append(yz + wx)
-	matrix.append(0.0)
-	matrix.append(xz + wy)
-	matrix.append(yz - wx)
-	matrix.append(1.0 - ( xx + yy ))
-	matrix.append(0.0)
-	matrix.append(0.0)
-	matrix.append(0.0)
-	matrix.append(0.0)
-	matrix.append(1.0)
-	return matrix
+    print("quat")
+    #For unit srcQuat, just set s = 2.0, or set xs = srcQuat[X] + srcQuat[X], etc.
+    s = 2.0 / ( srcQuat[X] * srcQuat[X] + srcQuat[Y] * srcQuat[Y] + srcQuat[Z] * srcQuat[Z] + srcQuat[W] * srcQuat[W] )
+    xs = srcQuat[X] * s
+    ys = srcQuat[Y] * s
+    zs = srcQuat[Z] * s
+    wx = srcQuat[W] * xs
+    wy = srcQuat[W] * ys
+    wz = srcQuat[W] * zs
+    xx = srcQuat[X] * xs
+    xy = srcQuat[X] * ys
+    xz = srcQuat[X] * zs
+    yy = srcQuat[Y] * ys
+    yz = srcQuat[Y] * zs
+    zz = srcQuat[Z] * zs
+    #set up 4x4 matrix
+    matrix=[]
+    matrix.append(1.0 - ( yy + zz ))
+    matrix.append(xy + wz)
+    matrix.append(xz - wy)
+    matrix.append(0.0)
+    matrix.append(xy - wz)
+    matrix.append(1.0 - ( xx + zz ))
+    matrix.append(yz + wx)
+    matrix.append(0.0)
+    matrix.append(xz + wy)
+    matrix.append(yz - wx)
+    matrix.append(1.0 - ( xx + yy ))
+    matrix.append(0.0)
+    matrix.append(0.0)
+    matrix.append(0.0)
+    matrix.append(0.0)
+    matrix.append(1.0)
+    return matrix
 
 def quat_to_matrix(srcQuat):
-	#print "quat"
-	#For unit srcQuat, just set s = 2.0, or set xs = srcQuat[X] + srcQuat[X], etc.
-	#s = 2.0 / ( srcQuat[X] * srcQuat[X] + srcQuat[Y] * srcQuat[Y] + srcQuat[Z] * srcQuat[Z] + srcQuat[W] * srcQuat[W] )
-	#xs = srcQuat[X] * s
-	#ys = srcQuat[Y] * s
-	#zs = srcQuat[Z] * s
-	#wx = srcQuat[W] * xs
-	##wy = srcQuat[W] * ys
-	#wz = srcQuat[W] * zs
-	#xx = srcQuat[X] * xs
-	#xy = srcQuat[X] * ys
-	#xz = srcQuat[X] * zs
-	#yy = srcQuat[Y] * ys
-	#yz = srcQuat[Y] * zs
-	#zz = srcQuat[Z] * zs
-	#set up 4x4 matrix
-	matrix=[]
+    #print "quat"
+    #For unit srcQuat, just set s = 2.0, or set xs = srcQuat[X] + srcQuat[X], etc.
+    #s = 2.0 / ( srcQuat[X] * srcQuat[X] + srcQuat[Y] * srcQuat[Y] + srcQuat[Z] * srcQuat[Z] + srcQuat[W] * srcQuat[W] )
+    #xs = srcQuat[X] * s
+    #ys = srcQuat[Y] * s
+    #zs = srcQuat[Z] * s
+    #wx = srcQuat[W] * xs
+    ##wy = srcQuat[W] * ys
+    #wz = srcQuat[W] * zs
+    #xx = srcQuat[X] * xs
+    #xy = srcQuat[X] * ys
+    #xz = srcQuat[X] * zs
+    #yy = srcQuat[Y] * ys
+    #yz = srcQuat[Y] * zs
+    #zz = srcQuat[Z] * zs
+    #set up 4x4 matrix
+    matrix=[]
 
-	matrix.append(1.0 - 2*(srcQuat[Y] * srcQuat[Y]) - 2*(srcQuat[Z] * srcQuat[Z]))
-	matrix.append(2*(srcQuat[X] * srcQuat[Y])-2*(srcQuat[Z] * srcQuat[W]))
-	matrix.append(2*(srcQuat[X] * srcQuat[Z])+2*(srcQuat[Y] * srcQuat[W]))
-	matrix.append(0.0)
+    matrix.append(1.0 - 2*(srcQuat[Y] * srcQuat[Y]) - 2*(srcQuat[Z] * srcQuat[Z]))
+    matrix.append(2*(srcQuat[X] * srcQuat[Y])-2*(srcQuat[Z] * srcQuat[W]))
+    matrix.append(2*(srcQuat[X] * srcQuat[Z])+2*(srcQuat[Y] * srcQuat[W]))
+    matrix.append(0.0)
 
-	matrix.append(2*(srcQuat[X] * srcQuat[Y])+2*(srcQuat[Z] * srcQuat[W]))
-	matrix.append(1.0 - 2*(srcQuat[X] * srcQuat[X]) - 2*(srcQuat[Z] * srcQuat[Z]))
-	matrix.append(2*(srcQuat[Y] * srcQuat[Z])-2*(srcQuat[X] * srcQuat[W]))
-	matrix.append(0.0)
+    matrix.append(2*(srcQuat[X] * srcQuat[Y])+2*(srcQuat[Z] * srcQuat[W]))
+    matrix.append(1.0 - 2*(srcQuat[X] * srcQuat[X]) - 2*(srcQuat[Z] * srcQuat[Z]))
+    matrix.append(2*(srcQuat[Y] * srcQuat[Z])-2*(srcQuat[X] * srcQuat[W]))
+    matrix.append(0.0)
 
-	matrix.append(2*(srcQuat[X] * srcQuat[Z])-2*(srcQuat[Y] * srcQuat[W]))
-	matrix.append(2*(srcQuat[Y] * srcQuat[Z])+2*(srcQuat[X] * srcQuat[W]))
-	matrix.append(1.0 - 2*(srcQuat[X] * srcQuat[X]) - 2*(srcQuat[Y] * srcQuat[Y]))
-	matrix.append(0.0)
+    matrix.append(2*(srcQuat[X] * srcQuat[Z])-2*(srcQuat[Y] * srcQuat[W]))
+    matrix.append(2*(srcQuat[Y] * srcQuat[Z])+2*(srcQuat[X] * srcQuat[W]))
+    matrix.append(1.0 - 2*(srcQuat[X] * srcQuat[X]) - 2*(srcQuat[Y] * srcQuat[Y]))
+    matrix.append(0.0)
 
-	matrix.append(0.0)
-	matrix.append(0.0)
-	matrix.append(0.0)
-	matrix.append(1.0)
+    matrix.append(0.0)
+    matrix.append(0.0)
+    matrix.append(0.0)
+    matrix.append(1.0)
 
-	return matrix
+    return matrix
 
 def quat_invert(q) :
-	qres = [0.0,0.0,0.0,0.0]
-	qNorm = 0.0;
-	qNorm = 1.0 / (q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z] + q[W]*q[W])
-	qres[X] = -q[X] * qNorm
-	qres[Y] = -q[Y] * qNorm
-	qres[Z] = -q[Z] * qNorm
-	qres[W] =  q[W] * qNorm
-	return qres
+    qres = [0.0,0.0,0.0,0.0]
+    qNorm = 0.0;
+    qNorm = 1.0 / (q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z] + q[W]*q[W])
+    qres[X] = -q[X] * qNorm
+    qres[Y] = -q[Y] * qNorm
+    qres[Z] = -q[Z] * qNorm
+    qres[W] =  q[W] * qNorm
+    return qres
 
 
 def quat_sum(q1,q2) :
-	qres = [0.0,0.0,0.0,0.0]
-	qres[W] = q1[W]+q2[W]
-	qres[X] = q1[X]+q2[X]
-	qres[Y] = q1[Y]+q2[Y]
-	qres[Z] = q1[Z]+q2[Z]
-	return qres
+    qres = [0.0,0.0,0.0,0.0]
+    qres[W] = q1[W]+q2[W]
+    qres[X] = q1[X]+q2[X]
+    qres[Y] = q1[Y]+q2[Y]
+    qres[Z] = q1[Z]+q2[Z]
+    return qres
 
 
 def quat_mult(q1,q2) :
-	qres = [0.0,0.0,0.0,0.0]
-	qres[W] = q1[W]*q2[W] - q1[X]*q2[X] - 	q1[Y]*q2[Y] - q1[Z]*q2[Z]
-	qres[X] = q1[W]*q2[X] + q1[X]*q2[W] + 	q1[Y]*q2[Z] - q1[Z]*q2[Y]
-	qres[Y] = q1[W]*q2[Y] + q1[Y]*q2[W] + 	q1[Z]*q2[X] - q1[X]*q2[Z]
-	qres[Z] = q1[W]*q2[Z] + q1[Z]*q2[W] + 	q1[X]*q2[Y] - q1[Y]*q2[X]
-	return qres
+    qres = [0.0,0.0,0.0,0.0]
+    qres[W] = q1[W]*q2[W] - q1[X]*q2[X] -     q1[Y]*q2[Y] - q1[Z]*q2[Z]
+    qres[X] = q1[W]*q2[X] + q1[X]*q2[W] +     q1[Y]*q2[Z] - q1[Z]*q2[Y]
+    qres[Y] = q1[W]*q2[Y] + q1[Y]*q2[W] +     q1[Z]*q2[X] - q1[X]*q2[Z]
+    qres[Z] = q1[W]*q2[Z] + q1[Z]*q2[W] +     q1[X]*q2[Y] - q1[Y]*q2[X]
+    return qres
 
 def quat_normalize(q) :
-	qres = [0.0,0.0,0.0,0.0]
-	normalizeFactor = 0.0;
-	normalizeFactor = 1.0 / sqrt( q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z] + q[W]*q[W])
-	qres[X] = q[X] * normalizeFactor
-	qres[Y] = q[Y] * normalizeFactor
-	qres[Z] = q[Z] * normalizeFactor
-	qres[W] = q[W] * normalizeFactor
-	return qres
+    qres = [0.0,0.0,0.0,0.0]
+    normalizeFactor = 0.0;
+    normalizeFactor = 1.0 / sqrt( q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z] + q[W]*q[W])
+    qres[X] = q[X] * normalizeFactor
+    qres[Y] = q[Y] * normalizeFactor
+    qres[Z] = q[Z] * normalizeFactor
+    qres[W] = q[W] * normalizeFactor
+    return qres
 
 def quat_diff(q1,q2) :
-	quat_inv = quat_invert(q1)
-	quat_diff = quat_mult(q2,quat_inv)
-	quat_norm = quat_normalize(quat_diff)
-	return quat_norm
+    quat_inv = quat_invert(q1)
+    quat_diff = quat_mult(q2,quat_inv)
+    quat_norm = quat_normalize(quat_diff)
+    return quat_norm
 
 # -*- coding: utf-8 -*-
 # transformations.py
@@ -1957,92 +1957,92 @@ def quaternion_slerp(quat0, quat1, fraction, spin=0, shortestpath=True):
     return swithQuat(q0,inv=True)
 
 def quat_to_axis_angle(q) :
-	axis_angle = [0.0,0.0,0.0,0.0]
-	length = sqrt( q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z])
-	if (length < Q_EPSILON)  :
-		axis_angle[2] = 1.0
-	else :
-		#According to an article by Sobiet Void (robin@cybervision.com) on Game Developer's
-		#Network, the following conversion is appropriate.
-		axis_angle[X] = q[X] / length;
-		axis_angle[Y] = q[Y] / length;
-		axis_angle[Z] = q[Z] / length;
-		axis_angle[W] = 2 * acos(q[W]);
-	return axis_angle
+    axis_angle = [0.0,0.0,0.0,0.0]
+    length = sqrt( q[X]*q[X] + q[Y]*q[Y] + q[Z]*q[Z])
+    if (length < Q_EPSILON)  :
+        axis_angle[2] = 1.0
+    else :
+        #According to an article by Sobiet Void (robin@cybervision.com) on Game Developer's
+        #Network, the following conversion is appropriate.
+        axis_angle[X] = q[X] / length;
+        axis_angle[Y] = q[Y] / length;
+        axis_angle[Z] = q[Z] / length;
+        axis_angle[W] = 2 * acos(q[W]);
+    return axis_angle
 
 def rotatePoint(pt,m,ax):
-				x=pt[0]
-				y=pt[1]
-				z=pt[2]
-				u=ax[0]
-				v=ax[1]
-				w=ax[2]
-				ux=u*x
-				uy=u*y
-				uz=u*z
-				vx=v*x
-				vy=v*y
-				vz=v*z
-				wx=w*x
-				wy=w*y
-				wz=w*z
-				sa=sin(ax[3])
-				ca=cos(ax[3])
-				pt[0]=(u*(ux+vy+wz)+(x*(v*v+w*w)-u*(vy+wz))*ca+(-wy+vz)*sa)+ m[0]
-				pt[1]=(v*(ux+vy+wz)+(y*(u*u+w*w)-v*(ux+wz))*ca+(wx-uz)*sa)+ m[1]
-				pt[2]=(w*(ux+vy+wz)+(z*(u*u+v*v)-w*(ux+vy))*ca+(-vx+uy)*sa)+ m[2]
-				return pt
+                x=pt[0]
+                y=pt[1]
+                z=pt[2]
+                u=ax[0]
+                v=ax[1]
+                w=ax[2]
+                ux=u*x
+                uy=u*y
+                uz=u*z
+                vx=v*x
+                vy=v*y
+                vz=v*z
+                wx=w*x
+                wy=w*y
+                wz=w*z
+                sa=sin(ax[3])
+                ca=cos(ax[3])
+                pt[0]=(u*(ux+vy+wz)+(x*(v*v+w*w)-u*(vy+wz))*ca+(-wy+vz)*sa)+ m[0]
+                pt[1]=(v*(ux+vy+wz)+(y*(u*u+w*w)-v*(ux+wz))*ca+(wx-uz)*sa)+ m[1]
+                pt[2]=(w*(ux+vy+wz)+(z*(u*u+v*v)-w*(ux+vy))*ca+(-vx+uy)*sa)+ m[2]
+                return pt
 
 
 def euler_to_quat(yaw, pitch, roll):
-	half_yaw=float(yaw)/2.0
-	half_pitch=float(pitch)/2.0
-	half_roll=float(roll)/2.0
-	cosYaw = cos(half_yaw);
-	sinYaw = sin(half_yaw);
-	cosPitch = cos(half_pitch);
-	sinPitch = sin(half_pitch);
-	cosRoll = cos(half_roll);
-	sinRoll = sin(half_roll);
-	destQuat=[]
-	destQuat.append(cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw)
-	destQuat.append(cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw)
-	destQuat.append(sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw)
-	destQuat.append(cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw)
-	return destQuat
+    half_yaw=float(yaw)/2.0
+    half_pitch=float(pitch)/2.0
+    half_roll=float(roll)/2.0
+    cosYaw = cos(half_yaw);
+    sinYaw = sin(half_yaw);
+    cosPitch = cos(half_pitch);
+    sinPitch = sin(half_pitch);
+    cosRoll = cos(half_roll);
+    sinRoll = sin(half_roll);
+    destQuat=[]
+    destQuat.append(cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw)
+    destQuat.append(cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw)
+    destQuat.append(sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw)
+    destQuat.append(cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw)
+    return destQuat
 
 def quat_to_euler(q):
-	euler=[0.,0.,0.]#heading-pitch Y, attitude-yaw-Z,bank-roll-tilts-X // Y-azimuth, X-elevation, Z-tilt. // Y Z X
-	sqw=q[3]*q[3]
-	sqx=q[0]*q[0]
-	sqy=q[1]*q[1]
-	sqz=q[2]*q[2]
-	unit=sqx + sqy + sqz + sqw
-	test=q[0]*q[1]+q[2]*q[3]
-	if (test > 0.499) : # singularity at north pole
-		euler[0]=2 * atan2(q[0],q[3])
-		euler[1]=math.pi/2
-		euler[2]=0
-		return euler
-	if (test < -0.499) :# singularity at south pole
-		euler[0]=2 * atan2(q[0],q[3])
-		euler[1]=-1*math.pi/2
-		euler[2]=0
-		return euler
+    euler=[0.,0.,0.]#heading-pitch Y, attitude-yaw-Z,bank-roll-tilts-X // Y-azimuth, X-elevation, Z-tilt. // Y Z X
+    sqw=q[3]*q[3]
+    sqx=q[0]*q[0]
+    sqy=q[1]*q[1]
+    sqz=q[2]*q[2]
+    unit=sqx + sqy + sqz + sqw
+    test=q[0]*q[1]+q[2]*q[3]
+    if (test > 0.499) : # singularity at north pole
+        euler[0]=2 * atan2(q[0],q[3])
+        euler[1]=math.pi/2
+        euler[2]=0
+        return euler
+    if (test < -0.499) :# singularity at south pole
+        euler[0]=2 * atan2(q[0],q[3])
+        euler[1]=-1*math.pi/2
+        euler[2]=0
+        return euler
 
-	euler[0]=atan2(2*q[1]*q[3]-2*q[0]*q[2],1 - 2*sqy - 2*sqz)
-	euler[1]=asin(2*test)
-	euler[2]=atan2(2*q[0]*q[3]-2*q[1]*q[2],1 - 2*sqx - 2*sqz)
-	return euler
+    euler[0]=atan2(2*q[1]*q[3]-2*q[0]*q[2],1 - 2*sqy - 2*sqz)
+    euler[1]=asin(2*test)
+    euler[2]=atan2(2*q[0]*q[3]-2*q[1]*q[2],1 - 2*sqx - 2*sqz)
+    return euler
 
 def dot(A,B):
-	return((A[0] * B[0]) + (A[1] * B[1]) + (A[2] * B[2]));
+    return((A[0] * B[0]) + (A[1] * B[1]) + (A[2] * B[2]));
 
 def angle(A,B):
-	"""give radians angle between vector A and B"""
-	normA=N.sqrt(N.sum(A*A))
-	normB=N.sqrt(N.sum(B*B))
-	return acos(dot(A/normA,B/normB))
+    """give radians angle between vector A and B"""
+    normA=N.sqrt(N.sum(A*A))
+    normB=N.sqrt(N.sum(B*B))
+    return acos(dot(A/normA,B/normB))
 
 def dist(A,B):
   return sqrt((A[0]-B[0])**2+(A[1]-B[1])**2+(A[2]-B[2])**2)
@@ -2056,49 +2056,49 @@ def normsq(A):
         return abs(sum(A*A))
 
 def normalize(A):
-        "Normalize the Vector"
-        if (norm(A)==0.0) : return A
-	else :return A/norm(A)
+    "Normalize the Vector"
+    if (norm(A)==0.0) : return A
+    else :return A/norm(A)
 
 def mini_array(array):
-	count=0
-	mini=9999
-	mini_array=N.array([0.,0.,0.])
-        for i in xrange(len(array)):
-		norm=N.sqrt(N.sum(array[i]*array[i]))
-		if N.sum(array[i]) != 0.0 :
-			if norm < mini :
-				mini_array=array[i]
-				mini=norm
-	return mini_array
+    count=0
+    mini=9999
+    mini_array=N.array([0.,0.,0.])
+    for i in range(len(array)):
+        norm=N.sqrt(N.sum(array[i]*array[i]))
+        if N.sum(array[i]) != 0.0 :
+            if norm < mini :
+                mini_array=array[i]
+                mini=norm
+    return mini_array
 
 
 def spAvg(array):
-	count=0
-	avg=N.array([0.,0.,0.])
-        for i in xrange(len(array)):
-		if N.sum(array[i]) != 0.0 :
-			avg+=array[i]
-			count=count+1
-	if count !=0 : avg*=1.0/count
-	return avg
+    count=0
+    avg=N.array([0.,0.,0.])
+    for i in range(len(array)):
+        if N.sum(array[i]) != 0.0 :
+            avg+=array[i]
+            count=count+1
+    if count !=0 : avg*=1.0/count
+    return avg
 
 def spAverage(cube):
-	count=0
-	avg=N.array([0.,0.,0.])
-	lavg=[]
-	for c in cube:
-	        for x in xrange(len(c)):
-        	    for y in xrange(len(c[0])):
-               		for z in xrange(len(c[0][0])):
-				if N.sum(c[x,y,z]) != 0.0 :
-					avg+=c[x,y,z]
-					count=count+1
-		if count !=0 : avg*=1.0/count
-		lavg.append(avg.copy())
-		avg=N.array([0.,0.,0.])
-		count=0
-	return N.array(lavg)
+    count=0
+    avg=N.array([0.,0.,0.])
+    lavg=[]
+    for c in cube:
+        for x in range(len(c)):
+            for y in range(len(c[0])):
+                for z in range(len(c[0][0])):
+                    if N.sum(c[x,y,z]) != 0.0 :
+                        avg+=c[x,y,z]
+                        count=count+1
+        if count !=0 : avg*=1.0/count
+        lavg.append(avg.copy())
+        avg=N.array([0.,0.,0.])
+        count=0
+    return N.array(lavg)
 
 def stddev(values):
     sum = sum2 = 0.
@@ -2127,7 +2127,7 @@ _AXES2TUPLE = {
     'rzxy': (1, 1, 0, 1), 'ryxy': (1, 1, 1, 1), 'ryxz': (2, 0, 0, 1),
     'rzxz': (2, 0, 1, 1), 'rxyz': (2, 1, 0, 1), 'rzyz': (2, 1, 1, 1)}
 
-_TUPLE2AXES = dict((v, k) for k, v in _AXES2TUPLE.items())
+_TUPLE2AXES = dict((v, k) for k, v in list(_AXES2TUPLE.items()))
 
 ################################################################################
 import sys,os
@@ -2141,7 +2141,7 @@ def findDirectory(dirname,where):
     result=None
     #print where
     if dirname in os.listdir(where):
-        print "founded"
+        print("founded")
         result=os.path.join(where,dirname)
     else :
         for dir in listDir(where):

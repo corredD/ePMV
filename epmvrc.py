@@ -105,7 +105,7 @@ self.setUserPreference(('Sharp Color Boundaries for MSMS', 'blur'), topCommand=0
 #self.GUI.floatCamera()
 #self.GUI.addToolBar('large')
 
-if self.hasGui and self.commands.has_key('dashboard'):
+if self.hasGui and 'dashboard' in self.commands:
     # adding columns to dashboard
     self.dashboardSuspendRedraw(True)
 

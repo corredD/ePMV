@@ -9,8 +9,12 @@
 ## after restoring form a session, compute->beaded Ribbon does not restore chcek button for strands
 ##
 import numpy
+import numpy.oldnumeric as Numeric
 import os, sys
-import Tkinter
+try :
+	import tkinter
+except :
+    import Tkinter as tkinter
 import Pmw, ImageTk
 
 from Pmv.mvCommand import MVCommand
@@ -20,7 +24,7 @@ from math import cos,sin, pi
 from DejaVu.IndexedPolygons import IndexedPolygons
 from DejaVu.Geom import Geom
 from Pmv.extruder import ExtrudeObject, ExtrudeCirclesWithRadii
-from Pmv.extruder import ExtrudeNA
+from Pmv.extruder import Sheet2D
 from mglutil.util.callback import CallbackFunction
 from mglutil.gui.BasicWidgets.Tk.thumbwheel import ThumbWheel
 from MolKit.molecule import MoleculeSet
@@ -29,8 +33,62 @@ from Pmv.displayCommands import DisplayCommand
 
 #event mangent
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
+from mglutil.math import crossProduct,norm
 
-#use of pyubic!-> how to improve culling ?
+def ExtrudeNA(chain,name='ssSheet2D'):
+    """Computes ribbons for DNA/RNA"""
+    coord = []
+    coord.append(chain.DNARes[0].atoms[0].coords)
+    NA_type = chain.DNARes[0].type.strip()                        
+    atoms = chain.DNARes[0].atoms
+    if NA_type in ['A', 'G']:
+        N9 =  Numeric.array(atoms.objectsFromString('N9')[0].coords)
+        C8 =  Numeric.array(atoms.objectsFromString('C8')[0].coords)
+        C4 =  Numeric.array(atoms.objectsFromString('C4')[0].coords)
+        N9_C8 = C8-N9
+        N9_C4 = C4-N9
+        normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
+    else:
+        N1 =  Numeric.array(atoms.objectsFromString('N1')[0].coords)
+        C2 =  Numeric.array(atoms.objectsFromString('C2')[0].coords)
+        C6 =  Numeric.array(atoms.objectsFromString('C6')[0].coords)
+        N1_C2 = C2-N1
+        N1_C6 = C6-N1
+        normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
+    base_normal = Numeric.array(chain.DNARes[0].atoms[0].coords)
+    coord.append((base_normal + normal).tolist())
+
+    for res in chain.DNARes[1:]:
+        if res.atoms.objectsFromString('P'):
+            P_coord = res.atoms.objectsFromString('P')[0].coords
+            coord.append(P_coord)
+        else: # this in case last residue does not have P
+            P_coord = res.atoms.objectsFromString('C5\*')[0].coords
+        NA_type = res.type.strip()      
+        atoms = res.atoms
+        if NA_type in ['A', 'G']:
+            N9 =  Numeric.array(atoms.objectsFromString('N9')[0].coords)
+            C8 =  Numeric.array(atoms.objectsFromString('C8')[0].coords)
+            C4 =  Numeric.array(atoms.objectsFromString('C4')[0].coords)
+            N9_C8 = C8-N9
+            N9_C4 = C4-N9
+            normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
+        else:
+            N1 =  Numeric.array(atoms.objectsFromString('N1')[0].coords)
+            C2 =  Numeric.array(atoms.objectsFromString('C2')[0].coords)
+            C6 =  Numeric.array(atoms.objectsFromString('C6')[0].coords)
+            N1_C2 = C2-N1
+            N1_C6 = C6-N1
+            normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
+
+        base_normal = Numeric.array(P_coord)
+        coord.append((base_normal + normal).tolist())
+        
+    chain.sheet2D[name] = Sheet2D()
+    chain.sheet2D[name].compute(coord, len(chain.DNARes)*(False,), 
+                             width = 2.0,off_c = 0.9,offset=0.0, nbchords=4)
+    chain.sheet2D[name].resInSheet = chain.DNARes
+
 class BeadedRibbonsCommand(MVCommand):
     """
     Command to compute Beaded Ribbons for selected molecule(s)
@@ -57,7 +115,7 @@ class BeadedRibbonsCommand(MVCommand):
         self.molModeVars = {}
         self.molFrames = {}
         self.strandW = [] # list of checkbuttons for strand color flipping
-        
+        self.redo = False
 
     def setupUndoBefore(self, nodes, **kw):
         for mol in nodes.top.uniq():
@@ -78,10 +136,10 @@ class BeadedRibbonsCommand(MVCommand):
 
     def onRemoveObjectFromViewer(self, mol):
         if self.master:
-            if self.molFrames.has_key(mol.name):
+            if mol.name in self.molFrames:
                 f = self.molFrames.pop(mol.name)
                 f.destroy()
-            if self.molModeVars.has_key(mol.name):
+            if mol.name in self.molModeVars:
                 self.molModeVars.pop(mol.name)
             self.hide()
 
@@ -238,15 +296,16 @@ class BeadedRibbonsCommand(MVCommand):
         frontcap = endcap = 0
 
         for mol in nodes.top.uniq():
-            if not hasattr(self.vf, 'secondarystructureset'):
+            if not hasattr(self.vf, 'secondarystructureset') or self.redo:
                 # FIXME use self.molModVars to use PROSS or file info for SS
-                if not self.molModeVars.has_key(mol.name):
+                if mol.name not in self.molModeVars:
                     if mol.parser.hasSsDataInFile():
                         mod = "From File"
                     else:
                         mod = "From Pross"
                 else:
                     mod = self.molModeVars[mol.name].get()
+                print ("recompute",mod)
                 self.vf.computeSecondaryStructure(
                     mol, molModes={'%s'%mol.name:mod}, topCommand=0)
 
@@ -261,7 +320,7 @@ class BeadedRibbonsCommand(MVCommand):
                         for SS in enumerate(chain.secondarystructureset):
                             if SS.__class__.__name__=='Strand':
                                 #print SS, mol.strandVar.has_key('%s%s%s'%(mol.name, chain.id,SS.name))
-                                if not mol.strandVar.has_key('%s%s%s'%(mol.name, chain.id,SS.name)):
+                                if '%s%s%s'%(mol.name, chain.id,SS.name) not in mol.strandVar:
                                     mol.strandVar = {}
                                     createStrandVar = True
                                     break
@@ -278,9 +337,11 @@ class BeadedRibbonsCommand(MVCommand):
 
             for chain in mol.chains:
                 chainMaster=self.vf.helper.getObject(mol.name+chain.name+"_beadedRibbon")
+                parent = mol.geomContainer.masterGeom.chains_obj[chain.name]
+                #not the mastergeom mol.geomContainer.geoms['master'].obj
                 if chainMaster is None:
                     chainMaster=self.vf.helper.newEmpty(mol.name+chain.name+"_beadedRibbon")
-                    self.vf.helper.addObjectToScene(None,chainMaster,parent=mol.geomContainer.geoms['master'].obj)
+                    self.vf.helper.addObjectToScene(None,chainMaster,parent=parent)
                 # create a master geometry for the beaded ribbon ALREADY CREATE line 263 ?
 #                molMaster = Geom('beadedRibbon')
 #                if self.vf.hasGui :
@@ -289,7 +350,7 @@ class BeadedRibbonsCommand(MVCommand):
 #                    mol.geomContainer.geoms['master'].children.append(molMaster)
 #                    molMaster.parent = mol.geomContainer.geoms['master']
                 if not hasattr(chain, 'sheet2D') or \
-                   not chain.sheet2D.has_key('beadedRibbonSheet'):
+                   'beadedRibbonSheet' not in chain.sheet2D or self.redo:
                     if chain.ribbonType()=='NA':
                         chain.sheet2D={}
                         ExtrudeNA(chain,name='beadedRibbonSheet')
@@ -325,14 +386,14 @@ class BeadedRibbonsCommand(MVCommand):
                 # set variable used to find portions of path 3d and 2D faces
                 chords = sheet.chords
                 lastResIndex = len(sheet.resInSheet)-1
-                sheet.resInSheet.resIndInSheet = range(lastResIndex+1)
+                sheet.resInSheet.resIndInSheet = list(range(lastResIndex+1))
                 lengthPath = len(sheet.path)
     
                 # set length of taper in number of points along the path
                 if taperLength is None:
-                    c2 = chords/2
+                    c2 = int(chords/2)
                 else:
-                    c2 = taperLength
+                    c2 = int(taperLength)
     
             ##
             ## loop over SS elements and taper path1 and path2 at beginning and end
@@ -522,7 +583,7 @@ class BeadedRibbonsCommand(MVCommand):
                                                       circle, cap1=1, cap2=1)
     
                             #check if the geom already exist if yes update if no create
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_edge1'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_edge1'
                             edge1 = self.vf.helper.getObject(name)
                             if edge1 is None :
                                 edge1 = self.vf.helper.createsNmesh(name,
@@ -547,7 +608,7 @@ class BeadedRibbonsCommand(MVCommand):
                             extruder2 = ExtrudeObject(p2, matrix2[start:end],
                                                   circle, cap1=1, cap2=1)
                                                   
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_edge2'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_edge2'
                             edge2 = self.vf.helper.getObject(name)
                             if edge2 is None :
                                 edge2 = self.vf.helper.createsNmesh(name,
@@ -570,10 +631,10 @@ class BeadedRibbonsCommand(MVCommand):
 #                                chainMaster.children.append(edge2)
 #                                edge2.parent = chainMaster      
                         else:
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_edge1'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_edge1'
                             edge1 = self.vf.helper.getObject(name)
                             self.vf.helper.toggleDisplay(edge1,False)
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_edge2'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_edge2'
                             edge2 = self.vf.helper.getObject(name)
                             self.vf.helper.toggleDisplay(edge2,False)
 #                            if self.vf.hasGui : 
@@ -597,7 +658,7 @@ class BeadedRibbonsCommand(MVCommand):
                                            sheet.binormals.tolist())
     
                         if sstype=='Helix':
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_faces'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces'
                             pol = self.vf.helper.getObject(name)
                             if pol is None:
                                 pol = self.vf.helper.createsNmesh(name,
@@ -615,7 +676,7 @@ class BeadedRibbonsCommand(MVCommand):
 #                                    vnormals=poln, faces=polf,
 #                                    inheritCulling=False, culling='None')
                             # check face normal to make sure back faces are inside
-                            mid = start + (end-start)/2
+                            mid = int(start + (end-start)/2)
                             x1,y1,z1 = path[mid]
                             x2,y2,z2 = path[mid+1]
                             dbase = (x2-x1)*(x2-x1) + (y2-y1)*(y2-y1) + (z2-z1)*(z2-z1)
@@ -644,7 +705,7 @@ class BeadedRibbonsCommand(MVCommand):
                                 #pol.Set(vertices=polv1, faces=polf, culling='back',
                                 #        inheritMaterial=0, materials=[helixColor1,],
                                 #        vnormals=vn)
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_faces2'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces2'
                                 pol2 = self.vf.helper.getObject(name)
                                 if pol2 is None:
                                     pol2 = self.vf.helper.createsNmesh(name,
@@ -666,19 +727,19 @@ class BeadedRibbonsCommand(MVCommand):
                                 # create sides of core
                                 polv3 = polv1.tolist()+polv2.tolist()
                                 l1 = len(polv1)
-                                a = min(polf[0][0], polf[0][-1])
-                                b = max(polf[-1][0], polf[-1][-1])
+                                a = int(min(polf[0][0], polf[0][-1]))
+                                b = int(max(polf[-1][0], polf[-1][-1]))
                                 if dbase>dend:
-                                    polf31 = [ [i, i+l1, i+l1+1, i+1] for i in xrange(a,b)]
+                                    polf31 = [ [i, i+l1, i+l1+1, i+1] for i in range(a,b)]
                                 else:
-                                    polf31 = [ [i, i+1, i+l1+1, i+l1] for i in xrange(a,b)]
-                                a = min(polf[0][1], polf[0][2])
-                                b = max(polf[-1][1], polf[-1][2])
+                                    polf31 = [ [i, i+1, i+l1+1, i+l1] for i in range(a,b)]
+                                a = int(min(polf[0][1], polf[0][2]))
+                                b = int(max(polf[-1][1], polf[-1][2]))
                                 if dbase>dend:
-                                    polf32 = [ [i, i+1, i+l1+1, i+l1] for i in xrange(a,b)]
+                                    polf32 = [ [i, i+1, i+l1+1, i+l1] for i in range(a,b)]
                                 else:
-                                    polf32 = [ [i, i+l1, i+l1+1, i+1] for i in xrange(a,b)]
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_sides'
+                                    polf32 = [ [i, i+l1, i+l1+1, i+1] for i in range(a,b)]
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_sides'
                                 pol3 = self.vf.helper.getObject(name)
                                 if pol3 is None:
                                     pol3 = self.vf.helper.createsNmesh(name,
@@ -698,10 +759,10 @@ class BeadedRibbonsCommand(MVCommand):
                                 #        materials=[(0,1,0),])
     
                             else:
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_faces2'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces2'
                                 pol2 = self.vf.helper.getObject(name)
                                 self.vf.helper.toggleDisplay(pol2,False)
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_sides'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_sides'
                                 pol3 = self.vf.helper.getObject(name)
                                 self.vf.helper.toggleDisplay(pol3,False)
                                 
@@ -724,7 +785,7 @@ class BeadedRibbonsCommand(MVCommand):
 #                                    if obj: self.vf.RemoveObject_noGui(obj)                                            
    
                         else: # strand
-                            name = mol.name+"_"+chain.name+"_"+SS.name+'_faces'
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces'
                             pol = self.vf.helper.getObject(name)
                             if pol is None:
                                 pol = self.vf.helper.createsNmesh(name,
@@ -755,7 +816,7 @@ class BeadedRibbonsCommand(MVCommand):
                                 #pol.Set(vertices=polv1, faces=polf, culling='back',
                                 #        inheritMaterial=0, materials=[sheetColor1,],
                                 #        vnormals=poln)
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_faces2'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces2'
                                 pol2 = self.vf.helper.getObject(name)
                                 if pol2 is None:
                                     pol2 = self.vf.helper.createsNmesh(name,
@@ -777,14 +838,14 @@ class BeadedRibbonsCommand(MVCommand):
                                 # create sides of core
                                 polv3 = polv1.tolist()+polv2.tolist()
                                 l1 = len(polv1)
-                                a = min(polf[0][0], polf[0][-1])
-                                b = max(polf[-1][0], polf[-1][-1])
-                                polf31 = [ [i, i+1, i+l1+1, i+l1] for i in xrange(a,b)]
-                                a = min(polf[0][1], polf[0][2])
-                                b = max(polf[-1][1], polf[-1][2])
-                                polf32 = [ [i, i+l1, i+l1+1, i+1] for i in xrange(a,b)]
+                                a = int(min(polf[0][0], polf[0][-1]))
+                                b = int(max(polf[-1][0], polf[-1][-1]))
+                                polf31 = [ [i, i+1, i+l1+1, i+l1] for i in range(a,b)]
+                                a = int(min(polf[0][1], polf[0][2]))
+                                b = int(max(polf[-1][1], polf[-1][2]))
+                                polf32 = [ [i, i+l1, i+l1+1, i+1] for i in range(a,b)]
 
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_sides'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_sides'
                                 pol3 = self.vf.helper.getObject(name)
                                 if pol3 is None:
                                     pol3 = self.vf.helper.createsNmesh(name,
@@ -805,10 +866,10 @@ class BeadedRibbonsCommand(MVCommand):
                                 #        materials=[(0,1,0),])
     
                             else:
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_faces2'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces2'
                                 pol2 = self.vf.helper.getObject(name)
                                 self.vf.helper.toggleDisplay(pol2,False)
-                                name = mol.name+"_"+chain.name+"_"+SS.name+'_sides'
+                                name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_sides'
                                 pol3 = self.vf.helper.getObject(name)
                                 self.vf.helper.toggleDisplay(pol3,False)
 #                               
@@ -851,7 +912,7 @@ class BeadedRibbonsCommand(MVCommand):
                             # create widget to flip color for strand
                             if self.vf.hasGui:
                                 if createStrandVar:
-                                    v = Tkinter.IntVar()
+                                    v = tkinter.IntVar()
                                     if hasattr(mol, 'strandVarValue'):
                                         v.set(mol.strandVarValue['%s%s%s'%(mol.name, chain.id,SS.name)])
                                     else:
@@ -867,7 +928,7 @@ class BeadedRibbonsCommand(MVCommand):
                                 if hasattr(self, 'notebook'):
                                     page = self.notebook.page('Strand Edit')
                                     #print 'FUGUO widget',  '%s_%s_%s'%(mol.name, chain.id, SS.name)
-                                    w = Tkinter.Checkbutton(
+                                    w = tkinter.Checkbutton(
                                         page, variable=v, text='%s_%s_%s'%(
                                             mol.name, chain.id, SS.name),
                                         command=cb)
@@ -883,12 +944,12 @@ class BeadedRibbonsCommand(MVCommand):
                         if sstype =='Coil':
                             color = coilColor
                             circle = circleC
-                            radii = [coilRadius]*(end-start)
+                            radii = [coilRadius]*int(end-start)
                             radius = coilRadius
                         else:
                             color = turnColor
                             circle = circleT
-                            radii = [turnRadius]*(end-start)
+                            radii = [turnRadius]*int(end-start)
                             radius = turnRadius
     
                         # find radius of previous element
@@ -917,15 +978,16 @@ class BeadedRibbonsCommand(MVCommand):
                         deltaRad1 = radius-startRad
                         deltaRad2 = radius-endRad
     
-                        for i in range(c2):
+                        for i in range(int(c2)):
                             radii[i] = startRad + deltaRad1*(i/float(c2))
                             radii[-i-1] = endRad + deltaRad2*(i/float(c2))
     
                         extruder = ExtrudeCirclesWithRadii(
                                 path[start:end], matrix[start:end],
                                 radii, cap1=1, cap2=1)
-                        name = "b"+mol.name+"_"+chain.name+"_"+SS.name
+                        name = "b"+mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")
                         tube = self.vf.helper.getObject(name)
+#                        print tube
                         if tube is None:
                             tube = self.vf.helper.createsNmesh(name,
                                     extruder.vertices,extruder.vnormals,extruder.faces,
@@ -1053,7 +1115,7 @@ class BeadedRibbonsCommand(MVCommand):
         if not len(selection): return
 
         if self.master == None:
-            self.master = Tkinter.Toplevel()
+            self.master = tkinter.Toplevel()
             self.master.protocol('WM_DELETE_WINDOW', self.hide)
             self.balloon = Pmw.Balloon(self.vf.GUI.ROOT)
             # create NoteBook widget
@@ -1067,7 +1129,7 @@ class BeadedRibbonsCommand(MVCommand):
             # add widgets to "General" page:
 
             # frame containing quality and taper length thumbwheels
-            self.frame1 = frame1 = Tkinter.Frame(general, bd=2, relief='groove',)
+            self.frame1 = frame1 = tkinter.Frame(general, bd=2, relief='groove',)
             frame1.pack(expand=1, fill='both', side = 'top')
             
             self.qualityw = qualityw = ThumbWheel(frame1,
@@ -1116,7 +1178,7 @@ class BeadedRibbonsCommand(MVCommand):
             photo = ImageTk.PhotoImage(
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "coilColor", 'Coil Color')
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=1, sticky='w')
             
@@ -1134,7 +1196,7 @@ class BeadedRibbonsCommand(MVCommand):
             photo = ImageTk.PhotoImage(
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "turnColor", "Turn color")
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=1, sticky='w')
 
@@ -1145,7 +1207,7 @@ class BeadedRibbonsCommand(MVCommand):
             # add widgets to "Helix" page:
             
             # frame containing width thumbwheel , front/back faces colors
-            frame2 = Tkinter.Frame(helix)
+            frame2 = tkinter.Frame(helix)
             frame2.pack(side='top', anchor='nw', fill='both')#, expand=1)
             
             self.helixWidthw = ThumbWheel(frame2,
@@ -1155,33 +1217,33 @@ class BeadedRibbonsCommand(MVCommand):
             self.helixWidthw.grid(row=0, column=0, sticky='nw')
             
             # helix color icons: 
-            lab1 = Tkinter.Label(frame2, text="Outside:", anchor="w",
-                                 justify=Tkinter.LEFT)
+            lab1 = tkinter.Label(frame2, text="Outside:", anchor="w",
+                                 justify=tkinter.LEFT)
             lab1.grid(row=0, column=2, sticky='nw')
             photo = ImageTk.PhotoImage(
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "helixColor1",
                                   'Helix Outside Color')
-            b = Tkinter.Button(frame2, command=cb, image=photo)
+            b = tkinter.Button(frame2, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=3, sticky='nw')
 
-            lab2 = Tkinter.Label(frame2, text="inside:", anchor="w",
-                                 justify=Tkinter.LEFT)
+            lab2 = tkinter.Label(frame2, text="inside:", anchor="w",
+                                 justify=tkinter.LEFT)
             lab2.grid(row=0, column=4, sticky='nw')
             photo = ImageTk.PhotoImage(
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "helixColor2",
                                   'Helix Inside Color')
-            b = Tkinter.Button(frame2, command=cb, image=photo)
+            b = tkinter.Button(frame2, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=5, sticky='nw')
                                   
             # Beads group:
-            self.helixBeadedvar = Tkinter.IntVar()
+            self.helixBeadedvar = tkinter.IntVar()
             self.helixBeadedvar.set(1)
             self.helixBeadsGroup = w = Pmw.Group(helix, tag_text='Beads',
-                                  tag_pyclass = Tkinter.Checkbutton,
+                                  tag_pyclass = tkinter.Checkbutton,
                                   tag_variable = self.helixBeadedvar,
                                   collapsedsize = 2,
                                   tag_command = self.helixBeaded_cb ) 
@@ -1201,7 +1263,7 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "helixBeadColor1",
                                   'Helix Bead Color1')
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=2, sticky='w')
 
@@ -1212,15 +1274,15 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "helixBeadColor2",
                                   'Helix Bead Color2')
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=3, sticky='w')
 
             # Thick group
-            self.helixThickvar = Tkinter.IntVar()
+            self.helixThickvar = tkinter.IntVar()
             self.helixThickvar.set(1)
             self.helixThickGroup = w = Pmw.Group(helix, tag_text='Thickness',
-                                  tag_pyclass = Tkinter.Checkbutton,
+                                  tag_pyclass = tkinter.Checkbutton,
                                   tag_variable = self.helixThickvar,
                                   tag_command = self.helixThick_cb) #self.rebuild ) 
             parent = w.interior()
@@ -1238,7 +1300,7 @@ class BeadedRibbonsCommand(MVCommand):
             sheet = notebook.add("Sheet")
             # add widgets to "Sheet" page
             # frame containing width thumbwheel, BodyStartScale thumbwheel and inside/outside colors: 
-            frame3 = Tkinter.Frame(sheet)
+            frame3 = tkinter.Frame(sheet)
             frame3.pack(side='top', anchor='nw', fill='both', expand=1)
             
             self.sheetBodyStartScalew = ThumbWheel(frame3,
@@ -1260,7 +1322,7 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "sheetColor1",
                                   'Sheet Color 1')
-            b = Tkinter.Button(frame3, command=cb, image=photo)
+            b = tkinter.Button(frame3, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=4, sticky='nw')
 
@@ -1271,18 +1333,18 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor, "sheetColor2",
                                   'Sheet Color 2')
-            b = Tkinter.Button(frame3, command=cb, image=photo)
+            b = tkinter.Button(frame3, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=5, sticky='nw')
             # frame containing Beads and Thick groups
-            frame4 = Tkinter.Frame(sheet)
+            frame4 = tkinter.Frame(sheet)
             frame4.pack(side='top', anchor='nw', fill='both', expand=1)
             
             # Beads group:            
-            self.sheetBeadedvar = Tkinter.IntVar()
+            self.sheetBeadedvar = tkinter.IntVar()
             self.sheetBeadedvar.set(1)
             self.sheetBeadGroup = w = Pmw.Group(frame4, tag_text='Beads',
-                                  tag_pyclass = Tkinter.Checkbutton,
+                                  tag_pyclass = tkinter.Checkbutton,
                                   tag_variable = self.sheetBeadedvar,
                                   tag_command = self.sheetBeaded_cb)#self.rebuild ) 
             parent = w.interior()
@@ -1301,7 +1363,7 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor,"sheetBeadColor1",
                                   'Sheet Bead Color 1')
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=1, sticky='w')
 
@@ -1312,15 +1374,15 @@ class BeadedRibbonsCommand(MVCommand):
                 file=os.path.join(ICONPATH, 'colorChooser20.png'))
             cb = CallbackFunction(self.setColor,"sheetBeadColor2",
                                   'Sheet Bead Color 2')                     
-            b = Tkinter.Button(parent, command=cb, image=photo)
+            b = tkinter.Button(parent, command=cb, image=photo)
             b.photo = photo
             b.grid(row=0, column=2, sticky='w')
 
             # Thick group
-            self.sheetThickvar = Tkinter.IntVar()
+            self.sheetThickvar = tkinter.IntVar()
             self.sheetThickvar.set(1)
             self.sheetThickGroup = w = Pmw.Group(frame4, tag_text='Thickness',
-                                  tag_pyclass = Tkinter.Checkbutton,
+                                  tag_pyclass = tkinter.Checkbutton,
                                   tag_variable = self.sheetThickvar,
                                   tag_command = self.sheetThick_cb ) 
             parent = w.interior()
@@ -1334,10 +1396,10 @@ class BeadedRibbonsCommand(MVCommand):
             self.sheetThicknessw.grid(row=0, column=0, sticky='w')
 
             #ArrowHead Group:
-            self.sheetArrowheadvar = Tkinter.IntVar()
+            self.sheetArrowheadvar = tkinter.IntVar()
             self.sheetArrowheadvar.set(1)
             self.sheetArrowheadGroup = w = Pmw.Group(sheet, tag_text='Arrowhead',
-                                  tag_pyclass = Tkinter.Checkbutton,
+                                  tag_pyclass = tkinter.Checkbutton,
                                   tag_variable = self.sheetArrowheadvar,
                                   tag_command = self.sheetArrowhead_cb ) 
             parent = w.interior()
@@ -1374,17 +1436,17 @@ class BeadedRibbonsCommand(MVCommand):
         self.master.withdraw()
 
     def addFileProssRadioButtons(self, molname):
-        f =  Tkinter.Frame(self.frame1)
-        v = Tkinter.StringVar()
+        f =  tkinter.Frame(self.frame1)
+        v = tkinter.StringVar()
         v.set("From File")
-        l = Tkinter.Label(f, text = "%s: " % molname)
+        l = tkinter.Label(f, text = "%s: " % molname)
         l.grid(row=0, column=0, sticky='w')
-        r1 = Tkinter.Radiobutton(f, text="From File", variable=v,
+        r1 = tkinter.Radiobutton(f, text="From File", variable=v,
                                  value="From File",# indicatoron=0,
                                  command = self.filePross_cb)
         r1.grid(row=0, column=1, sticky='w')
         self.balloon.bind(r1, "get the information from the file")
-        r2 = Tkinter.Radiobutton(f, text="From PROSS", variable=v,
+        r2 = tkinter.Radiobutton(f, text="From PROSS", variable=v,
                                  value="From Pross", #indicatoron=0,
                                  command = self.filePross_cb)
         r2.grid(row=0, column=2, sticky='w')
@@ -1555,7 +1617,7 @@ class DisplayBeadedRibbonsCommand(DisplayCommand):
         kw['negate'] = negate
 
         self.clearStrandVar()
-        apply(self.doitWrapper, (nodes,),kw)
+        self.doitWrapper(*(nodes,), **kw)
 
     def setVisible(self, obj, value):
         obj.Set( visible = value)
@@ -1580,7 +1642,7 @@ class UndisplayBeadedRibbonsCommand(DisplayCommand):
     """
     
     def onAddCmdToViewer(self):
-        if not self.vf.commands.has_key('displayBeadedRibbons'):
+        if 'displayBeadedRibbons' not in self.vf.commands:
             self.vf.loadCommand('beadedRibbonsCommands',
                                 ['displayBeadedRibbons'], 'Pmv',
                                 topCommand=0)
@@ -1595,7 +1657,7 @@ class UndisplayBeadedRibbonsCommand(DisplayCommand):
         nodes = self.vf.expandNodes(nodes)
         if not nodes: return
         kw['negate']= 1
-        apply(self.vf.displayBeadedRibbons, (nodes,), kw)
+        self.vf.displayBeadedRibbons(*(nodes,), **kw)
 
 
 displayBeadedRibbonsGuiDescr = {'widgetType':'Menu', 'menuBarName':'menuRoot',
