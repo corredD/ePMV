@@ -35,8 +35,12 @@ class epmvSynchro(plugins.TagData):
                 self.epmv = c4d.mv[dname]
                 self.mv = self.epmv.mv
             else : 
-                self.epmv = None
-                self.mv = None
+                if len(c4d.mv.values()):
+                   self.epmv = c4d.mv.values()[0]
+                   self.mv = self.epmv.mv
+                else : 
+                   self.epmv = None
+                   self.mv = None   
             #print "rexectute", self.mv
         else : 
             self.epmv = None

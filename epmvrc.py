@@ -8,6 +8,7 @@
 # $Id: _pmvrc,v 1.78 2010/11/01 17:44:28 sanner Exp $
 
 import pickle
+import sys
 
 numOfSelectedVerticesToSelectTriangle = 1 # 1 , 2 or 3
 
@@ -19,7 +20,7 @@ numOfSelectedVerticesToSelectTriangle = 1 # 1 , 2 or 3
 self.browseCommands('fileCommands', package="Pmv", topCommand=0)
 self.browseCommands('bondsCommands',package='Pmv', topCommand=0)
 
-self.browseCommands('colorCommands',package='Pmv', topCommand=0)
+self.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)
 self.browseCommands('deleteCommands',package='Pmv', topCommand=0)
 self.browseCommands('displayCommands',
                     commands=['displaySticksAndBalls','undisplaySticksAndBalls',
@@ -62,7 +63,11 @@ self.browseCommands('selectionCommands', commands=['select', 'deselect',
 if self.hasGui:
     self.browseCommands('APBSCommands', package='Pmv', topCommand=0)
 else :
-    self.browseCommands('APBSCommands', package='ePMV', topCommand=0)
+    if sys.version_info < (2, 7):
+        self.browseCommands('APBSCommands_2x', package='ePMV', topCommand=0)
+    else :
+        self.browseCommands('APBSCommands', package='ePMV', topCommand=0)
+
 self.browseCommands('repairCommands', package='Pmv', topCommand=0)
 self.browseCommands("dejaVuCommands", package="ViewerFramework", topCommand=0)
 self.browseCommands('displayCommands',

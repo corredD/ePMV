@@ -17,6 +17,7 @@ def epmv_start(soft,gui=False,debug=0):
     @rtype:   epmvAdaptor
     @return:  the embeded PMV object which consist in the adaptor, the molecular
     viewer and the helper.
+    #whatabout tk and Qt?
     """    
 
     if soft == 'blender24':

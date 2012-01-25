@@ -24,3 +24,17 @@ p38traj = p38ca.copy()
 p38traj.delCoordset(0)
 p38traj.addCoordset( trajectory )
 prody.writePDB('p38_mode1_trajectory.pdb', p38traj)
+def computeNormalMode(userfilenamein="",userfilenameout="NMA.pdb", usermode=0,userrmsd=0.8, usernbconf=5, conf="allatom", usercutoff=15.0, usergamma=1.0) : 
+	mystruct = prody.parsePDB(userfilenamein, model=1)
+	mystruct_ca = mystruct.select('protein and name CA')
+
+	anm = prody.ANM(userfilenamein+str(usermode))
+	anm.buildHessian(mystruct_ca, gamma=usergamma, cutoff=usercutoff)
+	anm.calcModes()
+	
+	bb_anm, bb_atoms = extrapolateModel(anm, mystruct_ca, mystruct.select(conf))
+	ensemble = sampleModes(bb_anm[usermode], bb_atoms, n_confs=usernbconf, rmsd=userrmsd)
+	nmastruct = mystruct.copy( bb_atoms )
+	nmastruct.addCoordset(ensemble)
+			
+	writePDB(userfilenameout, nmastruct)

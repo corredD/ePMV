@@ -42,7 +42,9 @@ except :
     import tkMessageBox
     tkinter.messagebox = tkMessageBox
 import Pmw
-from PIL import Image, ImageTk
+#from PIL import Image, ImageTk
+import Image
+import ImageTk
 from DejaVu.Geom import Geom
 from ViewerFramework.VFCommand import Command, CommandGUI
 from mglutil.gui import widgetsOnBackWindowsCanGrabFocus
@@ -60,7 +62,9 @@ from Volume.IO.AutoGridReader import ReadAutoGrid
 from Volume.IO.gamessOrbitalsReader import ReadGamessOrbitals
 from Volume.Grid3D import Grid3D, Grid3DD, Grid3DF, Grid3DI, \
      Grid3DSI, Grid3DUI, Grid3DUSI, Grid3DUC, ArrayTypeToGrid, GridTypeToArray
-from Volume.Renderers.UTVolumeLibrary.DejaVu.UTVolRenGeom import UTVolRenGeom     
+#from Volume.Renderers.UTVolumeLibrary.DejaVu.UTVolRenGeom import UTVolRenGeom  
+UTVolRenGeom = None
+#thi was broking maya   
 from mglutil.util.packageFilePath import findFilePath
 from DejaVu.extendedSlider import ExtendedSlider
 try:

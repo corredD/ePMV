@@ -170,7 +170,8 @@ class BeadedRibbonsCommand(MVCommand):
         \nOptional Arguments:\n
              \nquality --- number of segments per residue (default 12)
              \ntaperLength --- number of points needed to close (taper off) the ribbon (default quality/2)
-             \nhelixBeaded --- if set to True - add beads to helix (default True)  
+             \nhelixBeaded --- if set to True - add beads to helix (default True)
+             \nhelixCylinder --- if set to True - no beads, helix replace by cylinder (default False)
              \nhelixWidth ---(default 1.6)
              \nhelixThick --- if set to True - add thikness to helix (default True)
              \nhelixThickness --- helix thickness (default.20 )
@@ -211,6 +212,7 @@ class BeadedRibbonsCommand(MVCommand):
              taperLength = None, # default to quality/2
              taperType = "sin", #detault is sinusoidale.
              helixBeaded = True,
+             helixCylinder = False,
              helixWidth = 1.6,
              helixThick = True,
              helixThickness = .20,
@@ -242,11 +244,14 @@ class BeadedRibbonsCommand(MVCommand):
              sheetArrowHeadLength = 8):
 
         # build dict of parameters used to restore in session and undo
+        if helixCylinder :
+            helixBeaded = False
         params = {
             'quality':quality,
             'taperLength':taperLength,
             'taperType':taperType,
             'helixBeaded':helixBeaded,
+            'helixCylinder':helixCylinder,
             'helixWidth':helixWidth,
             'helixThick':helixThick,
             'helixThickness':helixThickness,
@@ -656,8 +661,34 @@ class BeadedRibbonsCommand(MVCommand):
                         polf = sheet.faces2D[start:end-1].tolist()
                         poln = numpy.array(sheet.binormals.tolist()+
                                            sheet.binormals.tolist())
-    
-                        if sstype=='Helix':
+                        if sstype=='Helix' and helixCylinder: 
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces'
+                            pol = self.vf.helper.getObject(name)
+                            self.vf.helper.toggleDisplay(pol,False)                            
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces2'
+                            pol2 = self.vf.helper.getObject(name)
+                            self.vf.helper.toggleDisplay(pol2,False)
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_sides'
+                            pol3 = self.vf.helper.getObject(name)
+                            self.vf.helper.toggleDisplay(pol3,False)     
+                            
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_cyl'
+                            pol= self.vf.helper.getObject(name)
+                            if pol is None:
+#                                p = path[start:end]
+                                pol=self.vf.helper.oneCylinder(name,path[start],path[end-1],
+                                                               color=helixColor1,parent=chainMaster,
+                                                               )
+                            else :
+                                self.vf.helper.updateOneCylinder(name,path[start],path[end-1],
+                                                               color=helixColor1)
+                                self.vf.helper.toggleDisplay(pol,True)                                                                
+                           
+                        elif sstype=='Helix' and not helixCylinder:
+                            name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_cyl'
+                            cyl = self.vf.helper.getObject(name)
+                            self.vf.helper.toggleDisplay(cyl,False)     
+                            
                             name = mol.name+"_"+chain.name+"_"+SS.name.replace("Nucleic","")+'_faces'
                             pol = self.vf.helper.getObject(name)
                             if pol is None:

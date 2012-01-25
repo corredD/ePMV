@@ -7,7 +7,7 @@ Cinema4D: 12
 __author__ = "Ludovic Autin, Graham Johnson"
 __url__ = ["http://mgldev.scripps.edu/projects/ePMV/wiki/index.php/Main_Page",
            'http://mgldev.scripps.edu/projects/ePMV/update_notes.txt']
-__version__="0.4.0"
+__version__="0.4.7"
 __doc__ = "ePMV v"+__version__
 __doc__+"""\
 Use cinema4d as a molecular viewer
@@ -42,8 +42,17 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 # ***** END GPL LICENCE BLOCK ***** 
 # -------------------------------------------------------------------------- 
 #=======
+#should be universal
 import os,sys
 import c4d
+import platform
+arch="64bit"
+mgl="mgl64"
+if sys.maxint == 2147483647:
+       mgl="mgl32"
+
+#2147483647 sys.maxint
+#9223372036854775807
 
 prefpath=c4d.storage.GeGetC4DPath(1)
 os.chdir(prefpath)
@@ -52,10 +61,10 @@ softdir = os.path.abspath(os.curdir)
 MGL_ROOT=""
 mgldirfile=softdir+os.sep+"mgltoolsdir"
 local = False
-localpath = softdir+os.sep+"plugins"+os.sep+"ePMV"+os.sep+"MGLToolsPckgs"
+localpath = softdir+os.sep+"plugins"+os.sep+"ePMV"+os.sep+mgl+os.sep+"MGLToolsPckgs"
 print localpath
 if os.path.exists(localpath):
-        MGL_ROOT=softdir+os.sep+"ePMV"+os.sep
+        MGL_ROOT=softdir+os.sep+"plugins"+os.sep+"ePMV"+os.sep+mgl+os.sep
         local = True
 elif os.path.isfile(mgldirfile) :
         f=open(mgldirfile,'r')

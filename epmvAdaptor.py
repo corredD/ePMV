@@ -8,8 +8,13 @@ This module provides the function to start ePMV, the function that handle the mo
 the Adaptor base class.
 """
 
+#fixFile "/local/ludo/Desktop/blender-2.49b/MGLToolsPckgs/ePMV/blender/v24/blenderAdaptor.py", 
+#line 301, in updateMolAtomCoordLines KeyError: 'hsg1:A_line'
+
+
 
 import sys,os
+import platform
 import DejaVu
 DejaVu.enableVertexArray = False
 from Pmv.mvCommand import MVCommand
@@ -251,7 +256,7 @@ class loadMoleculeInHost(MVCommand):
     def __call__(self, mol, **kw):
         self.doitWrapper(*(mol,), **kw)
         
-class epmvAdaptor:
+class epmvAdaptor(object):
     """
     The ePMV Adaptor object
     =======================
@@ -345,17 +350,19 @@ class epmvAdaptor:
 #        if not self.useLog : 
 #            self.mv.hostApp.driver.useEvent = True
         self.mv.iTraj={}
+        
         self.funcColor = [self.mv.colorByAtomType,
                           self.mv.colorAtomsUsingDG,
                           self.mv.colorByResidueType,
                           self.mv.colorResiduesUsingShapely,
                           self.mv.colorBySecondaryStructure,
                           self.mv.colorByChains,
+                          self.mv.colorByDomains,
                           self.mv.color,
                           self.mv.colorByProperty]
         self.fTypeToFc = {"ByAtom":0,"AtomsU":1,"ByResi":2,"Residu":3,
-                          "BySeco":4,"ByChai":5,"":6,
-                          "ByPropN":7,"ByPropT":8,"ByPropS":9}
+                          "BySeco":4,"ByChai":5,"ByDoma":6,"":7,
+                          "ByPropN":8,"ByPropT":9,"ByPropS":10}
         self.mv.host = self.host
 #        mv.hostApp.driver.bicyl = self.bicyl
 
@@ -377,6 +384,10 @@ class epmvAdaptor:
         
         self.mv = mv
         self.host = host
+        self.soft = host
+        self.rep = "epmv"
+        if not hasattr(self,"helper"):
+            self.helper = None
 #        self.Set(reset=True,useLog=useLog,**kw)
         if self.mv == None :
             self.mv = self.start(debug=debug)
@@ -406,7 +417,8 @@ class epmvAdaptor:
         self.usefullname = False
         self.molDictionary = {}
         self.hmol = 0
-        
+        self.control_mmaya = False
+            
     def setupInst(self):
 #        print "mglroot ",self.mglroot
         if not self.mglroot :
@@ -453,6 +465,7 @@ class epmvAdaptor:
         self._AF = False
         self._AR = False
         self._pymol = False
+        self._prody = False
         self.synchronize()
  
     def Set(self,reset=False,**kw):
@@ -530,6 +543,10 @@ class epmvAdaptor:
                             verbose=False, gui = False)
 
         return mv
+
+    def synchronize(self):
+        pass
+
 
     def addADTCommands(self):
         """
@@ -1275,6 +1292,7 @@ class epmvAdaptor:
              \nquality --- number of segments per residue (default 12)
              \ntaperLength --- number of points needed to close (taper off) the ribbon (default quality/2)
              \nhelixBeaded --- if set to True - add beads to helix (default True)  
+             \nhelixCylinder --- if set to True - no beads, helix replace by cylinder (default False)             
              \nhelixWidth ---(default 1.6)
              \nhelixThick --- if set to True - add thikness to helix (default True)
              \nhelixThickness --- helix thickness (default.20 )
@@ -1611,23 +1629,23 @@ class epmvAdaptor:
         if selection == None :
             selection = mol
 #        print "colorF ", funcId,self.funcColor[funcId], lGeom
-        if funcId == 6 : 
+        if funcId == 7 : 
             #custom color
             color = self.mv.molDispl[mname]["col"]
-            self.funcColor[6](selection,[color], lGeom, log=1)
-        elif funcId == 7 or funcId == 8 or funcId == 9  :
+            self.funcColor[7](selection,[color], lGeom, log=1)
+        elif funcId == 8 or funcId == 9 or funcId == 10  :
             #color by properties , ie NtoC, Bfactor, SAS
             self.mv.colorByProperty.level='Atom'
-            if funcId == 7 :
+            if funcId == 8 :
                 #what about chain selection
                 maxi = max(selection.number)#selection[-1].number
                 mini = min(selection.number)#selection[0].number
                 property = 'number'
-            elif funcId == 8 :
+            elif funcId == 9 :
                 maxi = max(selection.temperatureFactor)
                 mini = min(selection.temperatureFactor)
                 property = 'temperatureFactor'
-            elif funcId == 9 : 
+            elif funcId == 10 : 
                 if not hasattr(selection,"sas_area"):
                     try :
                         self.mv.computeSESAndSASArea(mol)
@@ -1637,7 +1655,7 @@ class epmvAdaptor:
                 mini = min(selection.sas_area)
                 property = 'sas_area'
 #            print ("color",len(selection),property)
-            self.funcColor[7](selection, lGeom, property,mini=float(mini),
+            self.funcColor[8](selection, lGeom, property,mini=float(mini),
                                         maxi=float(maxi), propertyLevel='Atom', 
                                         colormap='rgb256')
             self.mv.molDispl[mname]["col"] = funcId
@@ -2014,7 +2032,7 @@ class epmvAdaptor:
         mname = mol.name
         disp = self.mv.molDispl[mname]
         at = "CA"
-        for c in mol.chains :
+        for i,c in enumerate(mol.chains) :
             if c.ribbonType()=='NA':
                 at = "O5'"
             if "spline" in disp:
@@ -2031,6 +2049,12 @@ class epmvAdaptor:
 #                print("update cloud",mol.name+":"+c.name+"_cloudds")
                 self.helper.updatePoly(mol.name+":"+c.name+"_cloudds",
                                        vertices=c.residues.atoms.coords)
+            if self.host == 'maya' and self.control_mmaya:
+                #need to update visible object in mMaya
+                ob = "chain_"+str(i)+"_particle"
+                self.helper.updateParticle(ob,vertices=c.residues.atoms.coords,
+                                           faces=None)
+                
         if "bead" in disp :
             if disp["bead"] :
                 params = self.getStoreLastUsed(mol.name,"bead")
@@ -2068,7 +2092,7 @@ class epmvAdaptor:
         @type  step: int or float
         @param step: the new value to apply
         """         
-         
+        print (traj,step)
         if traj[0] is not None :
             if traj[1] == 'traj':
                 mol = traj[0].player.mol
@@ -2084,7 +2108,7 @@ class epmvAdaptor:
                 if type == 'model':
                     nmodels=len(mol.allAtoms[0]._coords)
                     if step < nmodels:
-                        mol.allAtoms.setConformation(step)
+                        mol.allAtoms.setConformation(int(step))
                         #self.mv.computeSecondaryStructure(mol.name,molModes={mol.name:'From Pross'})
                         from Pmv.moleculeViewer import EditAtomsEvent                       
                         event = EditAtomsEvent('coords', mol.allAtoms)
@@ -2479,10 +2503,16 @@ class epmvAdaptor:
         for i,ext in enumerate(self.inst.extensions):
             if self.inst.extdir[i] not in sys.path :
                 sys.path.append(self.inst.extdir[i])
-                if ext.lower() == 'modeller' : #what about windows? with 9.10
+                if ext.lower() == 'modeller' : #with 9.10
                     sys.path.insert(1,self.inst.extdir[i]+"/modlib")
                     sys.path.insert(1,self.inst.extdir[i]+"/lib")
-                    sys.path.insert(1,self.inst.extdir[i]+"/lib/mac10v4")
+                    if sys.platform == "darwin" :
+                        sys.path.insert(1,self.inst.extdir[i]+"/lib/mac10v4")#this is for mac
+                    elif sys.platform == "win32" :
+                        pass
+                    elif sys.platform.find("linux") != -1 :
+                        if platform.architecture()[0] == "32bit":
+                            sys.path.insert(1,self.inst.extdir[i]+"/lib/i386-intel8")#which python ?
         if not self.useModeller :
             try :
                 import modeller
@@ -2511,6 +2541,13 @@ class epmvAdaptor:
                 listExtension.append('PyMol')
             except :
                 print("no pymol")
+        if not self._prody:
+            try :
+                import prody
+                self._prody = True
+                listExtension.append('Prody')
+            except :
+                print("no prody")                
         return listExtension
 
     #from the helper, may change in c4d, maya to check
@@ -2602,8 +2639,11 @@ class epmvAdaptor:
         if self.usefullname:
             mol = atom1.top.name
             ch = atom1.parent.parent.name        
-        name1=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom1.name+sep+str(atom1.number)+sep+atom2.name+sep+str(atom2.number)
-        name2=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom2.name+sep+str(atom2.number)+sep+atom1.name+sep+str(atom1.number)
+        #this is too long for blender2.49 and 2.6
+#        name1=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom1.name+sep+str(atom1.number)+sep+atom2.name+sep+str(atom2.number)
+#        name2=prefix+sep+mol+sep+ch+sep+util.changeR(atom1.parent.name)+sep+atom2.name+sep+str(atom2.number)+sep+atom1.name+sep+str(atom1.number)
+        name1=prefix+sep+mol+sep+ch+sep+atom1.name+sep+str(atom1.number)+sep+atom2.name+sep+str(atom2.number)
+        name2=prefix+sep+mol+sep+ch+sep+atom2.name+sep+str(atom2.number)+sep+atom1.name+sep+str(atom1.number)
         return name1.replace("'","b"),name2.replace("'","b")
         
     def atomNameRule(self,atom,prefix):
@@ -2688,14 +2728,15 @@ class epmvAdaptor:
     
     def setupMaterials(self):
         #Atoms Materials
-        self.helper.addMaterialFromDic(AtomElements)
-        self.helper.addMaterialFromDic(DavidGoodsell)
-        self.helper.addMaterial("A",(0.8,1.,1.))
-        self.helper.addMaterial("anyatom",(0.8,1.,1.))
-        self.helper.addMaterial("M",(0.8,1.,1.))
-        self.helper.addMaterial("Mg",(0.8,1.,1.))
-        self.helper.addMaterial("hetatm",(0.,1.,0.))
-        self.helper.addMaterial("sticks",(0.,1.,0.))
+        if self.helper is not None :
+            self.helper.addMaterialFromDic(AtomElements)
+            self.helper.addMaterialFromDic(DavidGoodsell)
+            self.helper.addMaterial("A",(0.8,1.,1.))
+            self.helper.addMaterial("anyatom",(0.8,1.,1.))
+            self.helper.addMaterial("M",(0.8,1.,1.))
+            self.helper.addMaterial("Mg",(0.8,1.,1.))
+            self.helper.addMaterial("hetatm",(0.,1.,0.))
+            self.helper.addMaterial("sticks",(0.,1.,0.))
         #Residues Materials  
         self.RasmolAminocorrected=RasmolAmino.copy()
         for res in RasmolAminoSortedKeys:
@@ -2704,13 +2745,15 @@ class epmvAdaptor:
                 name = 'D'+name
                 self.RasmolAminocorrected[name]= RasmolAmino[res]
                 del self.RasmolAminocorrected[res]
-        self.helper.addMaterialFromDic(self.RasmolAminocorrected)
+        if self.helper is not None :
+            self.helper.addMaterialFromDic(self.RasmolAminocorrected)
         #SS Material
         SecondaryStructureType['Sheet']=SecondaryStructureType['Strand']
         ssc={}
         for ss in SecondaryStructureType:
             ssc[ss[:4]] = SecondaryStructureType[ss]
-        self.helper.addMaterialFromDic(ssc)
+        if self.helper is not None :
+            self.helper.addMaterialFromDic(ssc)
 
     def getAtomMaterial(self,atomname):
         mat= self.helper.getMaterial("anyatom")
@@ -2825,6 +2868,14 @@ class epmvAdaptor:
                     if chmat == None :
                         ch_colors = self.mv.colorByChains.palette.lookup(mol.chains)
                         chmat = self.helper.addMaterial(ch.material,ch_colors[ch.number])
+                    self.helper.assignMaterial(o,[chmat])
+                newmat = chmat
+            elif typeMat == "ByDoma" :
+                if matname is not "domain"+str(atom.domainFragmentNumber) : #switch to ch materials
+                    chmat = self.helper.getMaterial("domain"+str(atom.domainFragmentNumber))
+                    if chmat == None :
+                        ch_colors = self.mv.colorByChains.palette.lookup([atom])
+                        chmat = self.helper.addMaterial("domain"+str(atom.domainFragmentNumber),ch_colors[0])
                     self.helper.assignMaterial(o,[chmat])
                 newmat = chmat
 
@@ -3560,4 +3611,71 @@ class epmvAdaptor:
                                 hiera,instance,parent=parent)
                 gstruts.append(bond)
         return [gstruts,instance]
+
+    def getDomains(self,mol,method="pdp"):
+        #'SCOP', 'CATH', 'dp' and 'pdp'
+        try :
+            import SOAPpy
+        except :
+            print ("install SOAPpy")
+            setattr(mol,"hasDomains",False)
+            return -1
+        try :
+            server = SOAPpy.SOAPProxy("http://www.pdb.org/pdb/services/pdbws")
+        except :
+            print ("problem connection")
+            setattr(mol,"hasDomains",False)
+            return -2
+        molname = mol.name
+        chains = mol.chains.name
+        strchains=""
+        for c in chains :
+            strchains+=c+","
+#        print molname,strchains[:-1],method
+        res = server.getDomainFragments(molname[0:4],strchains[:-1],method)
+        setattr(mol,"hasDomains",True)
+        setattr(mol,"domains",res)
+        for ats in mol.allAtoms:
+            r = ats.parent
+            ats.domainFragmentNumber = self.getResDomain(r,res)        
+        return 0
+
+    def getResDomain(self,r,domains):
+        for d in domains :
+            if r.parent.name == d.methodChainId :            
+                if int(r.number) >= int(d.methodStart) and int(r.number) <= int(d.methodEnd):
+                    return d.domainFragmentNumber
+        return 0
+
+    def getDomainsResiduesCoords(self,mol):
+        lres = self.getDomainsResidues(mol)
+        lcoords=[]        
+        for lr in lres:
+            coord=[]
+            for r in lr :
+                coord.extend(r.atoms.coords)
+            lcoords.append(coord)
+        return lcoords
+            
+    def getDomainsResidues(self,mol):
+        if not mol : return
+        if not len(mol.domains) : return
+        domainResidues = []        
+        for d in mol.domains :
+            st = d.methodStart
+            end = d.methodEnd
+            ch = mol.chains.get(d.methodChainId)
+            lres = [r for r in ch.residues if int(r.number) >= int(d.methodStart) and int(r.number) <= int(d.methodEnd)]            
+            #lres = ch.residues.get(st+"-"+end)
+#            if not len(lres):
+#                print ch,d.methodChainId
+#                print st,end,st+"-"+end
+#                print  ch.residues.get(st+"-"+end)
+#                print d
+            domainResidues.append(lres)
+        return domainResidues
+            
+            
+
+                
     

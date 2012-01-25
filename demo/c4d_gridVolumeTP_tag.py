@@ -20,24 +20,45 @@ import random
 #value -> color            <=> age -> color
 #value -> transparance     <=> age -> transparence
 
+#volume 1
+#density 0.1
+#with MAtrix problem of particle position / grid position
+#but creating the particle from the gris seems expansive ?
 def main():
     epmv = c4d.mv.values()[0]
     grid = epmv.mv.grids3D.values()[0]#[name]how to specify it ... ? 
-    #need  the particle aready created ...
-    PS = doc.GetParticleSystem()
-    root = PS.GetRootGroup()
+    N = grid.dimensions[0]*grid.dimensions[1]*grid.dimensions[2]
+    print N    
+
+    #root = PS.GetRootGroup()
     cframe = doc.GetTime().GetFrame(doc.GetFps()) #10->300,1->30
+    if cframe == 0 :
+        #make the PS
+        PS = epmv.helper.grid_particle("grid",grid.dimensions,grid.getOriginReal(),grid.stepSize)
+    #need  the particle aready created ...
+    PS = doc.GetParticleSystem()    
     #N = PS.NumParticles()
     #use the attached object/polygon to create the PS
     ob = op.GetObject()
     gname = "gridTP"
-    maxi = grid.maxi #100%
-    mini = grid.mini #0%
+    mean = grid.mean
+    std = grid.std
+    #need to normalize it 
+#    diff = grid.maxi-grid.mini #maxi - mini
+
+    maxi = grid.maxi#mean+std#grid.maxi #100%
+    mini = grid.mini#mean-std#grid.mini #0%
+    #normalized?
+    diff = 0
+    if mini < 0. :
+        diff = maxi - mini #maxi - mini
+    maxi = maxi + diff
+    mini = mini + diff
+    #grid.maxi+diff = 100%
     #if grid.mini < 0 :
     #all value + abs(mini)
     #should we use color transfert map for getting Age ?
-    N = grid.dimensions[0]*grid.dimensions[1]*grid.dimensions[2]
-    print N
+    
     lv = []
     for i in range(3) :  lv.append(grid.dimensions[i] * grid.stepSize[i])
     #Matrix[c4d.MG_GRID_SIZE]= epmv.helper.FromVec(lv)
@@ -45,37 +66,21 @@ def main():
     #ob is the matrix ?
     #trunk the data ? 
     NX,NY,NZ = grid.dimensions
-    threshold = 100.0
+    threshold = maxi+0.1#is the maximum value of the data? or a thresh
+    ids = range(N)
     def returnW(i,j,k): return int(k*NX*NY + j*NX + i)
     #i,i,k -> w ? int(k*NX*NY + j*NX + i)
-    if cframe == 0 :
-        #generate the particle system for this group
-#        v = ob.GetAllPoints()
-#        N = len(v)
-        ids = range(N)
-        #gPS = epmv.helper.particle(gridPointsCoords,group_name=gname)
-        life = [c4d.BaseTime(threshold),]*N
-        map(PS.SetLife,ids,life)
-        for i in range(NX):
-            for j in range(NY):
-                for k in range(NZ):
-                    id=returnW(i,j,k)
-                    val = grid.data[i][j][k]+mini
-                    if val/maxi < threshold:
-                        PS.SetAge(id,c4d.BaseTime(val))
-                    else :
-                        PS.SetAge(id,c4d.BaseTime(threshold))
-        #ages = [c4d.BaseTime(d+mini) for d in dist]
-        #map(PS.SetAge,ids,ages)
-        #set up the Life and Age
-    else :
-        #data?
-        for i in range(NX):
-            for j in range(NY):
-                for k in range(NZ):
-                    id=returnW(i,j,k)
-                    val = grid.data[i][j][k]+mini
-                    if val/maxi < threshold:
-                        PS.SetAge(id,c4d.BaseTime(val))
-                    else :
-                        PS.SetAge(id,c4d.BaseTime(threshold))
+    life = [c4d.BaseTime(threshold),]*N
+    map(PS.SetLife,ids,life)
+    for i in range(NX):
+        for j in range(NY):
+            for k in range(NZ):
+                id=returnW(i,j,k)
+                val = grid.data[i][j][k]+diff
+                PS.SetAge(id,c4d.BaseTime(val))
+                if val < maxi and val > mini :
+                    PS.SetAge(id,c4d.BaseTime(val))
+                elif val >= maxi  :
+                    PS.SetAge(id,c4d.BaseTime(maxi))
+                elif val <= mini  :
+                    PS.SetAge(id,c4d.BaseTime(mini))

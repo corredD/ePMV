@@ -14,6 +14,8 @@ import c4d
 import random
 #BaseTime is in second
 
+#linear gradient 0 - N/2 - N
+#
 def main():
     random.seed(24)
     PS = doc.GetParticleSystem()

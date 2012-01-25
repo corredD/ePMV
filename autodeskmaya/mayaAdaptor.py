@@ -21,8 +21,14 @@ from Pmv.pmvPalettes import RasmolAmino, RasmolAminoSortedKeys
 from Pmv.pmvPalettes import Shapely
 from Pmv.pmvPalettes import SecondaryStructureType
 
+#could be scriptJob related to an attribute/maya event
+#timeChanged
+#set jobNum = cmds.scriptJob( ct= ["timeChanged",callback])
+#stop cmds.scriptJob( kill=jobNum, force=True)
+#cmds.scriptJob( attributeChange=['mySphere.ty', callback] )#use attribute string objectname.attributename
+
 class ePMVsynchro:
-    
+    #period problem
     def __init__(self,epmv,period=0.1):
         self.period = period
         self.callback = None
@@ -52,7 +58,6 @@ class ePMVsynchro:
 #            #getCurrent time
             t = self.timeControl.currentTime()
             frame = int(t.asUnits(OpenMaya.MTime.kFilm))
-#            frame=doc.GetTime().GetFrame(fps)
             st,ft=self.epmv.synchro_ratio
             if (frame % ft) == 0:   
                 step = frame * st
@@ -66,6 +71,7 @@ class ePMVsynchro:
             slist.getSelectionStrings(selection)
             self.epmv.updateCoordFromObj(selection,debug=True)
         self.epmv.helper.update()
+
 
 class mayaAdaptor(epmvAdaptor):
     
@@ -119,16 +125,50 @@ class mayaAdaptor(epmvAdaptor):
         self.rep = "epmv"
         #specific options
         self.keywords["spherestype"]={"name":"use nurbs sphere instead of polygonal one","value":True,"type":"checkbox"}
-
+        self.control_mmaya = False
+        
     def synchronize(self):
         if self.synchro_realtime:
             if not hasattr(self,"epmv_synchro") or self.epmv_synchro is None:
-                self.epmv_synchro = ePMVsynchro(self,period=0.1)
+                self.epmv_synchro = ePMVsynchro(self,period=0.05)#0.05
             self.epmv_synchro.set_callback()
         else :
             if hasattr(self,"epmv_synchro") and self.epmv_synchro is not None :
                 self.epmv_synchro.remove_callback()
 #                self.epmv_synchro = None
+        if self.synchro_timeline :
+            self.synchronize_timeline()
+
+    def updateDataPlayerAttr(self,mini,maxi,default,step):
+        cmds.addAttr( 'ePMV.dp',e=1,
+                     defaultValue=default, minValue=mini, maxValue=maxi )
+        
+    def synchronize_timeline(self):       
+        #batchrendering requirepreRenderML:
+        #python ("import maya\nfrm maya import cmds\nepmv=maya.mv.values()[0]\nepmv.callback()")
+        def callback(*args):
+#            #getCurrent time
+            step = cmds.getAttr('ePMV.dp')
+            print step
+            traj = self.gui.current_traj
+            self.updateData(traj,step)
+        self.callback = callback
+        root = self.helper.getObject("ePMV")
+        if self.synchro_timeline and root is None :
+            root = self.helper.newEmpty("ePMV")
+            attr = cmds.addAttr( shortName='dp', longName='dataplayer', attributeType='float',
+                             keyable=True,
+                             defaultValue=0.0, minValue=0.00, maxValue=10. )
+            self.epmv_synchro_timeline = cmds.scriptJob( attributeChange=['ePMV.dp', callback])
+#            self.epmv_synchro_timeline_changed =  cmds.scriptJob( e= ["timeChanged",callback])
+            #use attribute string objectname.attributename
+            #can update it cmds.addAttr( '.implColor', query=True, usedAsColor=True )
+#            root.MakeTag(1027093)
+#            self.helper.addObjectToScene(self.helper.getCurrentScene(),root)
+            #batch rendering
+            cstr = 'python ("import maya\\nfrom maya import cmds\\nepmv=maya.mv.values()[0]\\nepmv.callback()")'
+            cmds.setAttr('defaultRenderGlobals.preRenderMel', cstr, type='string')
+
         
     def _makeRibbon(self,name,coords,shape=None,spline=None,parent=None):
         sc=self._getCurrentScene()

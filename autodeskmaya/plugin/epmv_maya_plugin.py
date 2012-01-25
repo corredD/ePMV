@@ -6,7 +6,7 @@ AutoDesk Maya: 2011
 __author__ = "Ludovic Autin"
 __url__ = ["http://mgldev.scripps.edu/projects/ePMV/wiki/index.php/Main_Page",
            'http://mgldev.scripps.edu/projects/ePMV/update_notes.txt']
-__version__="0.0.2a"
+__version__="0.4.3"
 __doc__ = "ePMV v"+__version__
 __doc__+"""\
 Use maya as a molecular viewer
@@ -60,17 +60,23 @@ os.chdir(prefpath)
 os.chdir(".."+os.sep)
 softdir = os.path.abspath(os.curdir)
 mgldirfile=prefpath+os.sep+"mgltoolsdir"
+local = False
+localpath = softdir+os.sep+"plug-ins"+os.sep+"MGLToolsPckgs"
+print localpath
 personalize = False
-if os.path.isfile(mgldirfile) :
+if os.path.exists(localpath):
+    MGL_ROOT=softdir+os.sep+"plug-ins"+os.sep
+    local = True
+elif os.path.isfile(mgldirfile) :
     f=open(mgldirfile,'r')
     MGL_ROOT=f.readline()
     f.close()
 else :
     cmds.confirmDialog( title='ePMV', message="ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile, button=['OK'], 
                            defaultButton='OK')
-print(MGL_ROOT)
+print MGL_ROOT
 ICONSDIR=MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+"images"+os.sep+"icons"+os.sep
-print(ICONSDIR)
+print ICONSDIR
 #register plugin dir
 #this is handle by the user
 #plugpath=os.environ["MAYA_PLUG_IN_PATH"].split(":")
@@ -80,15 +86,18 @@ print(ICONSDIR)
 
 #add to syspath
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
-if sys.platform == "win32":
-    sys.path.append(MGL_ROOT+os.sep+'MGLToolsPckgs'+os.sep+'PIL')
+if not local :
+    if sys.platform == "win32":
+        sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
+    else :
+        sys.path.insert(1,sys.path[0]+"/lib-tk")
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
 else :
-    sys.path[0]=(MGL_ROOT+'/lib/python2.5/site-packages')
-    sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
-    sys.path.append('/Library/Python/2.5/site-packages/')
-
+    sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
+    sys.path.insert(1,MGL_ROOT+'/MGLToolsPckgs/lib-tk')
 kPluginCmdName = "ePMV"
-print(kPluginCmdName)
+print kPluginCmdName
 
 import upy
 upy.setUIClass('maya')
@@ -99,7 +108,7 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
     def __init__(self):
         OpenMayaMPx.MPxCommand.__init__(self)
     def doIt(self,argList):
-        print(argList)
+        print argList
         epmvui = epmvGui.epmvGui()
         epmvui.setup(rep="epmv",mglroot=MGL_ROOT,host='maya')
         epmvui.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,

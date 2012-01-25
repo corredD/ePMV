@@ -17,10 +17,12 @@ from MolKit.protein import ResidueSetSelector,Chain, Protein,Residue
 
 from ePMV import comput_util as util
 #need to check python version...
-if sys.version_info < (2, 7):
+if sys.version_info < (2, 8):
     from ePMV.APBSCommands_2x import APBSgui
 else :
     from ePMV.APBSCommands import APBSgui
+
+from ePMV.register_epmv import Register_User_ePMV_ui
 
 from time import time
 
@@ -548,6 +550,7 @@ class Parameter_beadRibbons(uiadaptor):
             'taperLength':{"type":"inputInt","value":6},
             'taperType':{"type":"pullMenu","value":self.tapertypes},
             'helixBeaded':{"type":"checkbox","value":1},
+            'helixCylinder':{"type":"checkbox","value":1},
             'helixWidth':{"type":"inputFloat","value":1.6},
             'helixThick':{"type":"inputFloat","value":1},
             'helixThickness':{"type":"inputFloat","value":0.20},
@@ -626,7 +629,7 @@ class Parameter_beadRibbons(uiadaptor):
                 frame = self._addLayout(name=l,elems=elemframe[l],collapse=True)
                 self._layout.append(frame)
         else:
-            while i < len(ordered)-1:#in range(len(ordered)/2):
+            while i < len(ordered)-3:#in range(len(ordered)/2):
                 self._layout.append([self.LABELS[ordered[i]],self.PARAMS[ordered[i]],
                                     self.LABELS[ordered[i+1]],self.PARAMS[ordered[i+1]],
                                     self.LABELS[ordered[i+2]],self.PARAMS[ordered[i+2]]])
@@ -1015,8 +1018,8 @@ class Parameter_epmvGUI(uiadaptor):
         self.block = True
         self.scrolling = True
         witdh=80
-        self.h = 385
-        self.w = 300
+        self.h = 600
+        self.w = 250
         
         if id is not None :
             id=id
@@ -1084,7 +1087,7 @@ class Parameter_epmvGUI(uiadaptor):
         
         self.setupLayout()
         #print self.host
-        if self.host != "maya" and self.host != "blender25":
+        if self.host != "maya" and self.host != "blender25" and self.host != "qt":
             #print "restore"
             self.restorePreferences()
         return True
@@ -1167,7 +1170,7 @@ class epmvGui(uiadaptor):
     status = 0
     link = 0
     nF=1000
-    __version__="0.4.3"
+    __version__="0.4.7"
     __about__="ePMV v"+__version__+"\n"
     __about__+="""\:
 ePMV by Ludovic Autin,Graham Jonhson,Michel Sanner.
@@ -1213,8 +1216,10 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                           self.mv.colorResiduesUsingShapely,
                           self.mv.colorBySecondaryStructure,
                           self.mv.colorByChains,
+                          self.mv.colorByDomains,
                           self.mv.color,
-                          self.mv.colorByProperty]
+                          self.mv.colorByProperty,
+                          ]
 #        print self.funcColor
         self.colSchem=['Atoms using CPK',
                'AtomsDG (polarity/charge)',
@@ -1222,10 +1227,12 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                'Per residue shapely',
                'Secondary Structure',
                'Chains',
+               'Domains',
                'Custom color',
                'Rainbow from N to C',
                'Temperature Factor',
-               'sas area']
+               'sas area',
+               ]
 
         #before creating the menu check the extensiosn
         #self.checkExtension()
@@ -1242,7 +1249,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.pymolgui = None
         self.pym = None
         self.register = None
-        if self.host != 'blender25' : self.checkRegistration()
+        if self.host != 'blender25' and self.host != 'qt': self.checkRegistration()
             
     
     def drawRegisterUI(self,*args):
@@ -1266,7 +1273,6 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
     def checkRegistration(self):
         #after 3 use ask for registration or discard epmv
         if not self.isRegistred():
-            from ePMV.register_epmv import Register_User_ePMV_ui
             self.register = Register_User_ePMV_ui()
             self.register.setup()
             self.drawSubDialog(self.register,255555643)#,asynchro = False)
@@ -1383,6 +1389,9 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         if self.epmv._pymol:            
             self.MENU_ID["Extensions"].append(self._addElemt(name="Pymol",
                                                 action=self.drawPymolGUI))#self.modellerGUI})
+        if self.epmv._prody:            
+            self.MENU_ID["Extensions"].append(self._addElemt(name="ProdyNMA",
+                                                action=self.drawProdyGUI))#self.modellerGUI})
 
         self.MENU_ID["Extensions"].append(self._addElemt(name="Add an Extension",
                                                 action=self.addExtensionGUI))#self.addExtensionGUI})
@@ -1713,6 +1722,10 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.applyPanel.setup(epmv=self.epmv)        
         self.bindPanel = BindGeomToMol()
         self.bindPanel.setup(epmv=self.epmv)
+        if self.epmv._prody :
+            from ePMV.extension._prody import prodyGui
+            self.prodygui = prodyGui.prodyGui()
+            self.prodygui.setup(epmv=self.epmv)
         
         #TODO
 #        self.argui = ParameterARViewer()
@@ -2106,8 +2119,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             self.mv.readAny(file)
 #            sys.stderr.write('DObe')
             name = list(self.mv.grids3D.keys())[-1] #the last read data
-            val = self.getLong(self.COMB_BOX["mol"])
             try :
+                val = self.getLong(self.COMB_BOX["mol"])
                 vname = self.COMB_BOX["mol"]["value"][val]
                 print((val,vname,self.COMB_BOX["mol"]["value"]))
                 mname,mol=self.epmv.getMolName(vname) 
@@ -2144,7 +2157,13 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         self.current_traj = self.mv.iTraj[i]
         mini,maxi,default,step = self.epmv.updateTraj(self.current_traj)
         print((mini,maxi,default,step))
+        print (self.SLIDERS["datS"]["value"])
         self.updateSlider(self.SLIDERS["datS"],mini,maxi,default,step)
+        #should we update the attribute if any for timeline purpose
+        if self.epmv.synchro_timeline:
+            #update maya attrbutes
+            if self.host == "maya":
+                self.epmv.updateDataPlayerAttr(mini,maxi,default,step)
         return True
         
     def applyState(self,*args):
@@ -2182,8 +2201,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         #return True
 
     def getDsInfo(self,key=None):
-        val = self.getLong(self.COMB_BOX["mol"])
         try :
+            val = self.getLong(self.COMB_BOX["mol"])
             name = self.COMB_BOX["mol"]["value"][val]
         except :
             return None,None,None,None
@@ -2578,7 +2597,9 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         if mol is None:
             return        
         name='CoarseMS_'+mname
-        parent=mol.geomContainer.masterGeom.obj 
+        parent = None
+        if hasattr(mol.geomContainer.masterGeom,"obj"):
+            parent=mol.geomContainer.masterGeom.obj
         iso = self.getReal(self.SLIDERS["cmsI"])
         res = self.getReal(self.SLIDERS["cmsR"])
         gridsize = self.getLong(self.SLIDERS["cmsG"])
@@ -2811,11 +2832,16 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                 #get the center of the chain
                 lsel.append(util.getCenter(ch.residues.atoms.coords))
         elif level == 'Domain' :
-            #how to get the domain and its center...
-            lsel=[]
-            for ch in lchain:
-                #get the center of the chain
-                lsel.append(util.getCenter(ch.residues.atoms.coords))           
+            #doesthe mol have domain information?
+            lsel=[]            
+            if not hasattr(mol,"hasDomains"):
+                domains= self.epmv.getDomains(mol)
+                if domains < 0 :
+                    return lsel
+            if mol.hasDomains :
+                #need to getcener of mass of each domains ?
+                lres = self.epmv.getDomainsResiduesCoords(mol)
+                lsel = [util.getCenter(l) for l in lres]
         elif level =='Selection':
             lsel = selection
         else :
@@ -2871,7 +2897,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         lGeom=self.getGeomActive(mname) 
         self.setLong(self.COMB_BOX["col"],6) #customcolor
         self.mv.molDispl[mname]["col"]=color
-        self.funcColor[6](selection,[color], lGeom, log=1)
+        self.funcColor[7](selection,[color], lGeom, log=1)
 
     def color(self,*args):
 #        print self.funcColor
@@ -2881,23 +2907,23 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
         lGeom=self.getGeomActive(mname)
         funcId = self.getLong(self.COMB_BOX["col"])
 #        print "colorF ", funcId,self.funcColor[funcId], lGeom
-        if funcId == 6 : 
+        if funcId == 7 : 
             #custom color
             self.mv.molDispl[mname]["col"]=color
-            self.funcColor[6](selection,[color], lGeom, log=1)
-        elif funcId == 7 or funcId == 8 or funcId == 9  :
+            self.funcColor[7](selection,[color], lGeom, log=1)
+        elif funcId == 8 or funcId == 9 or funcId == 10  :
             #color by properties , ie NtoC, Bfactor, SAS
             self.mv.colorByProperty.level='Atom'
-            if funcId == 7 :
+            if funcId == 8 :
                 #what about chain selection
                 maxi = max(selection.number)#selection[-1].number
                 mini = min(selection.number)#selection[0].number
                 property = 'number'
-            elif funcId == 8 :
+            elif funcId == 9 :
                 maxi = max(selection.temperatureFactor)
                 mini = min(selection.temperatureFactor)
                 property = 'temperatureFactor'
-            elif funcId == 9 : 
+            elif funcId == 10 : 
                 if not hasattr(selection,"sas_area"):
                     try :
                         self.mv.computeSESAndSASArea(mol)
@@ -2907,7 +2933,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
                 mini = min(selection.sas_area)
                 property = 'sas_area'
 #            print ("color",len(selection),property)
-            self.funcColor[7](selection, lGeom, property,mini=float(mini),
+            self.funcColor[8](selection, lGeom, property,mini=float(mini),
                                         maxi=float(maxi), propertyLevel='Atom', 
                                         colormap='rgb256')
             self.mv.molDispl[mname]["col"] = funcId
@@ -3248,6 +3274,8 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
             self.pymolgui.setup(sub=True,epmv=self.epmv,pym=self.pym)        
         self.drawSubDialog(self.pymolgui,25555570)
         
+    def drawProdyGUI(self,*args):
+        self.drawSubDialog(self.prodygui,25555570)
 
     def modellerOptimize(self,*args):
         import modeller
