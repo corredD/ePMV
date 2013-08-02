@@ -283,10 +283,11 @@ by Grid3D-->Read GUI
                     reader = self.askMapType()
                     if not reader:
                         return
+        print (reader) 
         try:
             grid3D = reader.read(gridFile, normalize=True)
         except Exception :
-#            print(inst)
+            print("Error reading Grid")
             if not show: return
             if self.vf.hasGui :
                 reader = self.askMapType()
@@ -301,6 +302,7 @@ by Grid3D-->Read GUI
                     return
             else : return
         if not grid3D:
+            print("Error reading Grid")
             if not show: return
             if self.vf.hasGui :
                 reader = self.askMapType()

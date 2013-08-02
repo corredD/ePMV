@@ -20,22 +20,52 @@ numOfSelectedVerticesToSelectTriangle = 1 # 1 , 2 or 3
 self.browseCommands('fileCommands', package="Pmv", topCommand=0)
 self.browseCommands('bondsCommands',package='Pmv', topCommand=0)
 
-self.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)
 self.browseCommands('deleteCommands',package='Pmv', topCommand=0)
-self.browseCommands('displayCommands',
-                    commands=['displaySticksAndBalls','undisplaySticksAndBalls',
-                              'displayCPK', 'undisplayCPK',
-                              'displayLines','undisplayLines',
-                              'displayBackboneTrace','undisplayBackboneTrace',
-			      'DisplayBoundGeom'
-                              ],
-                    package='Pmv', topCommand=0)
+if sys.version_info <= (2, 7):
+    self.browseCommands('displayCommands',
+                        commands=['displaySticksAndBalls','undisplaySticksAndBalls',
+                                  'displayCPK', 'undisplayCPK',
+                                  'displayLines','undisplayLines',
+                                  'displayBackboneTrace','undisplayBackboneTrace',
+                                  ],
+                        package='Pmv', topCommand=0)
+    
+    self.browseCommands('displayCommands',
+                        commands=['showMolecules'],
+                        package='Pmv', topCommand=0)
+                        
+    self.browseCommands('displayCommands', commands=['DisplayBoundGeom'],package='ePMV.pmv_dev', topCommand=0)    
+else :
+    self.browseCommands('displayCommands',
+                        commands=['displaySticksAndBalls','undisplaySticksAndBalls',
+                                  'displayCPK', 'undisplayCPK',
+                                  'displayLines','undisplayLines',
+                                  'displayBackboneTrace','undisplayBackboneTrace',
+                                  ],
+                        package='Pmv', topCommand=0)
+    
+    self.browseCommands('displayCommands',
+                        commands=['showMolecules'],
+                        package='Pmv', topCommand=0)
+                        
+    self.browseCommands('displayCommands_3x', commands=['DisplayBoundGeom'],package='ePMV.pmv_dev', topCommand=0)    
+                   
 self.browseCommands('editCommands',package='Pmv', topCommand=0)
 if self.hasGui:
    self.browseCommands("interactiveCommands", package="Pmv", topCommand=0)
-self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
-self.browseCommands('beadedRibbonsCommands', package="ePMV", topCommand=0)
+   
+#self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
+if sys.version_info <= (2, 7): 
+    self.browseCommands('secondaryStructureCommands', package='ePMV.pmv_dev', topCommand=0)
+else : 
+    self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
+
+self.browseCommands('beadedRibbonsCommands', package="ePMV.pmv_dev", topCommand=0)
+
+
 self.browseCommands("splineCommands", package="Pmv", topCommand=0)
+
+#self.browseCommands("coarseMolSurfaceCommands", package="Pmv", topCommand=0)
 
 mslib_import = False
 try:#msms is not distributed with commercial version, so we need this to avoid the Traceback
@@ -63,17 +93,20 @@ self.browseCommands('selectionCommands', commands=['select', 'deselect',
 if self.hasGui:
     self.browseCommands('APBSCommands', package='Pmv', topCommand=0)
 else :
-    if sys.version_info < (2, 7):
-        self.browseCommands('APBSCommands_2x', package='ePMV', topCommand=0)
+    if sys.version_info <= (2, 7):
+        self.browseCommands('APBSCommands_2x', package='ePMV.pmv_dev', topCommand=0)
+        self.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)
     else :
-        self.browseCommands('APBSCommands', package='ePMV', topCommand=0)
+        self.browseCommands('APBSCommands', package='ePMV.pmv_dev', topCommand=0)
+        self.browseCommands('colorCommands_3x',package='ePMV.pmv_dev', topCommand=0)
+
+self.browseCommands('buildDNACommands',package='ePMV.pmv_dev', topCommand=0)#commands=['buildDNA']
+#self.browseCommands('strutsCommands', package='ePMV.pmv_dev',commands=['buildStruts'], topCommand=0)
 
 self.browseCommands('repairCommands', package='Pmv', topCommand=0)
 self.browseCommands("dejaVuCommands", package="ViewerFramework", topCommand=0)
-self.browseCommands('displayCommands',
-                    commands=['showMolecules'],
-                    package='Pmv', topCommand=0)
-self.browseCommands('helpCommands',package ='Pmv', topCommand =0)
+                    
+#self.browseCommands('helpCommands',package ='Pmv', topCommand =0)
 
 # load command: edit - color palettes - Edit Color By Atom Type Palette
 if self.hasGui:
@@ -81,7 +114,7 @@ if self.hasGui:
                         commands=['editColorPaletteByAtomType', 'editColorPaletteByResidueType', 
                                   'editColorPaletteByChain', 'editColorPaletteByMolecule' ],
                         package='Pmv', topCommand=0)
-self.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
+#self.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
 self.browseCommands('setangleCommands', package='Pmv', topCommand=0)
 if self.hasGui:
     # The following commands will be executed on the molecule when
@@ -103,10 +136,10 @@ if self.hasGui:
 
 
 # Set some user preferences
-#if self.hasGui:
-self.setUserPreference(('Transformation Logging', 'final'), topCommand=0)
-self.setUserPreference(('Show Progress Bar', 'show'), topCommand=0)
-self.setUserPreference(('Sharp Color Boundaries for MSMS', 'blur'), topCommand=0)
+if self.hasGui:
+    self.setUserPreference(('Transformation Logging', 'final'), topCommand=0)
+    self.setUserPreference(('Show Progress Bar', 'show'), topCommand=0)
+    self.setUserPreference(('Sharp Color Boundaries for MSMS', 'blur'), topCommand=0)
 #self.GUI.floatCamera()
 #self.GUI.addToolBar('large')
 
@@ -177,9 +210,9 @@ if self.hasGui and 'dashboard' in self.commands:
    
     self.GUI.ROOT.after_idle(self.fetch.checkCache)
 
-self.browseCommands('serverCommands', commands=[
-    'startServer', 'connectToServer', 'StartWebControlServer'],
-                    package='ViewerFramework', topCommand=0)
-                    
+#self.browseCommands('serverCommands', commands=[
+#    'startServer', 'connectToServer', 'StartWebControlServer'],
+#                    package='ViewerFramework', topCommand=0)
+#                    
 
 

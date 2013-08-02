@@ -78,6 +78,9 @@ class mayaAdaptor(epmvAdaptor):
     def __init__(self,gui=False,mv=None,debug=0):
         self.soft = 'maya'
         self.helper = mayaHelper.mayaHelper()
+        #this should only be used for cpk! not bioMt
+        self.helper.cmdInstance = self.helper.newInstance
+        self.helper.newInstance = self.helper.newMInstance
         epmvAdaptor.__init__(self,mv,host='maya',debug=debug)
         #scene and object helper function
 #        self._getCurrentScene = mayaHelper.getCurrentScene
@@ -208,57 +211,57 @@ class mayaAdaptor(epmvAdaptor):
         return iMe
 
 
-    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
-                             join=0,geom=None,pb=False):
-        sphers=[]
-        k=0
-        n='S'
-        nn = 'cpk'
-        if scale == 0.0 : scale = 1.0    
-        #if mat == None : mat=create_Atoms_materials()    
-        if name.find('balls') != (-1) : 
-            n='B'
-            nn='balls'
-        #print name
-        if geom is not None:
-            coords=geom.getVertices()
-        else :
-            coords=x.coords
-        #import maya
-        pb = self.use_progressBar    
-        hiera = 'default'        
-        mol = x[0].getParentOfType(Protein)        
-        #parent=getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_balls"])  
-        #parent=self.findatmParentHierarchie(x[0],n,hiera)
-        if pb :
-            self.helper.resetProgressBar()
-        for c in mol.chains:
-            if pb :
-                self.helper.progressBar(label="chain :"+c.name)
-            spher=[]
-            oneparent = True 
-            atoms = c.residues.atoms
-#            if pb != None  : 
-#                maya.cmds.progressBar(maya.pb, edit=True, maxValue=len(atoms.coords),progress=0)
-            #parent=self.findatmParentHierarchie(atoms[0],n,hiera) 
-            #hierarchy=atoms[0].full_name().split(":")   
-            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn])
-            def oneinstance(at,pb=False):
-                atN=at.name
-                if atN[0] not in list(self.AtmRadi.keys()): atN="A"
-                fullname = self.atomNameRule(at,n)
-                atC=at.coords
-                sph = self.helper.newMInstance(fullname,iMe[atN[0]],location=atC,parent = parent)
-                #self.helper.addObjectToScene(self.helper.getCurrentScene(),sph,parent=parent)
-                self.helper.toggleDisplay(sph,False)
-                if pb :
-                    self.helper.progressBar(progress = 1)
-                return sph
-            spher = [oneinstance(at,pb=pb) for at in atoms]   
-            sphers.extend(spher)
-        if pb :
-            self.helper.resetProgressBar()
-        return spher
+#    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
+#                             join=0,geom=None,pb=False):
+#        sphers=[]
+#        k=0
+#        n='S'
+#        nn = 'cpk'
+#        if scale == 0.0 : scale = 1.0    
+#        #if mat == None : mat=create_Atoms_materials()    
+#        if name.find('balls') != (-1) : 
+#            n='B'
+#            nn='balls'
+#        #print name
+#        if geom is not None:
+#            coords=geom.getVertices()
+#        else :
+#            coords=x.coords
+#        #import maya
+#        pb = self.use_progressBar    
+#        hiera = 'default'        
+#        mol = x[0].getParentOfType(Protein)        
+#        #parent=getObject(mol.geomContainer.masterGeom.chains_obj[hierarchy[1]+"_balls"])  
+#        #parent=self.findatmParentHierarchie(x[0],n,hiera)
+#        if pb :
+#            self.helper.resetProgressBar()
+#        for c in mol.chains:
+#            if pb :
+#                self.helper.progressBar(label="chain :"+c.name)
+#            spher=[]
+#            oneparent = True 
+#            atoms = c.residues.atoms
+##            if pb != None  : 
+##                maya.cmds.progressBar(maya.pb, edit=True, maxValue=len(atoms.coords),progress=0)
+#            #parent=self.findatmParentHierarchie(atoms[0],n,hiera) 
+#            #hierarchy=atoms[0].full_name().split(":")   
+#            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn])
+#            def oneinstance(at,pb=False):
+#                atN=at.name
+#                if atN[0] not in list(self.AtmRadi.keys()): atN="A"
+#                fullname = self.atomNameRule(at,n)
+#                atC=at.coords
+#                sph = self.helper.newMInstance(fullname,iMe[atN[0]],location=atC,parent = parent)
+#                #self.helper.addObjectToScene(self.helper.getCurrentScene(),sph,parent=parent)
+#                self.helper.toggleDisplay(sph,False)
+#                if pb :
+#                    self.helper.progressBar(progress = 1)
+#                return sph
+#            spher = [oneinstance(at,pb=pb) for at in atoms]   
+#            sphers.extend(spher)
+#        if pb :
+#            self.helper.resetProgressBar()
+#        return spher
 
     def _changeColor(self,geom,colors,perVertex=True,perObjectmat=None,pb=False):
         if hasattr(geom,'mesh'):
@@ -272,12 +275,24 @@ class mayaAdaptor(epmvAdaptor):
         self.helper.changeColor(objToColor,colors,perVertex=perVertex,
                          perObjectmat=perObjectmat,pb=pb)
 
+    def _updateArmature(self,name,atomset,coords=None,root=None,scn=None):
+        names = None
+        if coords is not None :
+            c = coords    
+        else :
+            c = atomset.coords
+            names = [x.full_name().replace(":","_") for x in atomset]
+        self.helper.updateArmature(name,c,listeName=names,
+                                          root=root,scn=scn)
+                                          
     def _armature(self,name, atomset,coords=None,scn=None,root=None):
+        names = None
         if coords is not None :
             c = coords
         else :
             c = atomset.coords
-        object,bones=self.helper.armature(name, c,scn=scn,root=root)
+            names = [x.full_name().replace(":","_") for x in atomset]
+        object,bones=self.helper.armature(name, c,listeName=names,scn=scn,root=root)
         return object,bones
 
     def _editLines(self,molecules,atomSets):

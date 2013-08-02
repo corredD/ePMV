@@ -74,11 +74,11 @@ dicToSend = {'sys_version':'',
 
 class Register_User_ePMV:
     """Opens TopLevel Dialog for User Registration"""
-    def __init__(self):
+    def __init__(self,use="ePMV"):
         self.form_dict = keyword.copy()
         from Support.version import __version__
         self.sys_dict = {
-             'PlanningToUse':'ePMV',
+             'PlanningToUse':use,
              'BuildFrom':'Binary',
              'version':__version__.split('(')[0],
              'os_name': os.name,
@@ -169,7 +169,7 @@ class Register_User_ePMV:
         return fullname 
 
 class Register_User_ePMV_ui (uiadaptor) :
-    def setup(self,sub=True,r=None,id=2000):
+    def setup(self,sub=True,r=None,id=2000,use="ePMV"):
         self.h = 350
         self.w = 300
         self.subdialog = sub
@@ -183,7 +183,7 @@ class Register_User_ePMV_ui (uiadaptor) :
         else:
             id = self.bid        
         if r is None :
-            self.reg = Register_User_ePMV()
+            self.reg = Register_User_ePMV(use=use)
         else :
             self.reg = r
         self.initWidget()
@@ -194,13 +194,20 @@ class Register_User_ePMV_ui (uiadaptor) :
     def initWidget(self):
         self.widget_form = {}
         self.label_form = {}
+        self.liste_institution = ["Academic", "Government", "Commercial"]
         for k in order :
             if k == "Institution Type*":
                 self.label_form[k] = self._addElemt(label=k+' Academic, Government, Commercial',
                     width=120)
+                #pullDownMenu
+                self.widget_form[k] = self._addElemt(name=k,
+                                    value=self.liste_institution,
+                                    width=100,height=10,action=None,
+                                    variable=self.addVariable("int",0),
+                                    type="pullMenu",)
             else :
                 self.label_form[k] = self._addElemt(label=k,width=120)
-            self.widget_form[k] = self._addElemt(name=k,width=100,height=10,
+                self.widget_form[k] = self._addElemt(name=k,width=100,height=10,
                                               action=None,type="inputStr",
                                               value=self.reg.form_dict[k],
                                               variable=self.addVariable("str",""))

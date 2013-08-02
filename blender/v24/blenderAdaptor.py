@@ -129,16 +129,17 @@ class blenderAdaptor(epmvAdaptor):
         if scene is not None : iObj=[]
         for atn in  list(self.AtmRadi.keys()):
             rad=float(self.AtmRadi[atn])#float(cpkRad)+float(AtmRadi[atn])*float(scale)
-            iMe[atn]= self.helper.getMesh("mesh_"+name+'_'+atn)
+#            iMe[atn]= self.helper.getMesh("mesh_"+name+'_'+atn)
+            iMe[atn]= self.helper.getObject( name+'_'+atn )
             if iMe[atn] is None :
-                ob,iMe[atn]=self.helper.Sphere(name+'_'+atn,
+                iMe[atn],me=self.helper.Sphere(name+'_'+atn,
                                                      res=segments,
                                                      mat = atn)
                 Smatrix=Blender.Mathutils.ScaleMatrix(float(rad)*2., 4)
-                iMe[atn].transform(Smatrix)
+                me.transform(Smatrix)
                 if scene != None : 
-                    iObj.append(ob)
-                    self.helper.toggleDisplay(ob,display=False)
+                    iObj.append(iMe[atn])
+                    self.helper.toggleDisplay(iMe[atn],display=False)
         cpk=self.helper.getObject(name)
         if scene !=  None and cpk is None : 
             cpk = self.helper.newEmpty(name)
@@ -148,68 +149,68 @@ class blenderAdaptor(epmvAdaptor):
             #print 'iobj ',len(iObj)
         return iMe
 
-    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
-                             join=0,geom=None,pb=False):
-        if scn == None :
-            scn=self.helper.getCurrentScene()
-        objs=[]
-        mol = x[0].getParentOfType(Protein)
-        n='S'
-        nn="cpk"
-        if name.find('balls') != (-1) : 
-            n='B'
-            nn="balls"
-        if geom is not None : 
-            coords=geom.getVertices()
-        else : 
-            coords = x.coords
-        hiera = 'default'
-        #what about chain...
-#        parent=self.findatmParentHierarchie(x[0],n,hiera)
-        for c in mol.chains:
-            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn]) 
-            obj=[]
-            oneparent = True 
-            atoms = c.residues.atoms
-#            parent=self.findatmParentHierarchie(atoms[0],n,hiera)
-            for j in range(len(atoms.coords)):
-                at=atoms[j]
-                atN=at.name
-                if atN[0] not in list(AtomElements.keys()) : atN="A"
-                #print atN
-                #fullname = at.full_name()
-                atC=atoms.coords[j]#at._coords[0]
-                #print atC, fullname,at.full_name()
-                mesh=iMe[atN[0]]
-                if type(mesh) == str :
-                    mesh=self.helper.getMesh(mesh)
-                atfname = self.atomNameRule(at,n)
-                #at.full_name().replace("'","b")+"n"+str(at.number)
-                #there is a string lenght limitation in blender object name...this is too long
-                #print "fullname ",atfname
-                OBJ=scn.objects.new(mesh,atfname)
-                #print "obj ",OBJ.name
-                self.helper.translateObj(OBJ,atC)
-                OBJ.setMaterials([Blender.Material.Get(atN[0])])
-                OBJ.colbits = 1<<0
-#                p = findatmParentHierarchie(at,n,hiera)
-#                if parent != p : 
-#                    p.makeParent([OBJ])
-#                    oneparent = False
-                self.helper.toggleDisplay(OBJ,False)
-                obj.append(OBJ)
-                if pb and (j%50) == 0:
-                    progress = float(j) / len(coords)
-                    Blender.Window.DrawProgressBar(progress, 'creating '+name+' spheres')
-            if oneparent :
-                parent.makeParent(obj)
-            objs.extend(obj)
-        if join==1 : 
-            obj[0].join(obj[1:])
-            for ind in range(1,len(obj)):
-                scn.unlink(obj[ind])
-            obj[0].setName(name)
-        return  objs
+#    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
+#                             join=0,geom=None,pb=False):
+#        if scn == None :
+#            scn=self.helper.getCurrentScene()
+#        objs=[]
+#        mol = x[0].getParentOfType(Protein)
+#        n='S'
+#        nn="cpk"
+#        if name.find('balls') != (-1) : 
+#            n='B'
+#            nn="balls"
+#        if geom is not None : 
+#            coords=geom.getVertices()
+#        else : 
+#            coords = x.coords
+#        hiera = 'default'
+#        #what about chain...
+##        parent=self.findatmParentHierarchie(x[0],n,hiera)
+#        for c in mol.chains:
+#            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn]) 
+#            obj=[]
+#            oneparent = True 
+#            atoms = c.residues.atoms
+##            parent=self.findatmParentHierarchie(atoms[0],n,hiera)
+#            for j in range(len(atoms.coords)):
+#                at=atoms[j]
+#                atN=at.name
+#                if atN[0] not in list(AtomElements.keys()) : atN="A"
+#                #print atN
+#                #fullname = at.full_name()
+#                atC=atoms.coords[j]#at._coords[0]
+#                #print atC, fullname,at.full_name()
+#                mesh=iMe[atN[0]]
+#                if type(mesh) == str :
+#                    mesh=self.helper.getMesh(mesh)
+#                atfname = self.atomNameRule(at,n)
+#                #at.full_name().replace("'","b")+"n"+str(at.number)
+#                #there is a string lenght limitation in blender object name...this is too long
+#                #print "fullname ",atfname
+#                OBJ=scn.objects.new(mesh,atfname)
+#                #print "obj ",OBJ.name
+#                self.helper.translateObj(OBJ,atC)
+#                OBJ.setMaterials([Blender.Material.Get(atN[0])])
+#                OBJ.colbits = 1<<0
+##                p = findatmParentHierarchie(at,n,hiera)
+##                if parent != p : 
+##                    p.makeParent([OBJ])
+##                    oneparent = False
+#                self.helper.toggleDisplay(OBJ,False)
+#                obj.append(OBJ)
+#                if pb and (j%50) == 0:
+#                    progress = float(j) / len(coords)
+#                    Blender.Window.DrawProgressBar(progress, 'creating '+name+' spheres')
+#            if oneparent :
+#                parent.makeParent(obj)
+#            objs.extend(obj)
+#        if join==1 : 
+#            obj[0].join(obj[1:])
+#            for ind in range(1,len(obj)):
+#                scn.unlink(obj[ind])
+#            obj[0].setName(name)
+#        return  objs
 
     def _changeColor(self,geom,colors,perVertex=True,perObjectmat=None,pb=False):
         print(geom)

@@ -384,14 +384,16 @@ def normalize(A):
 def changeR(txt):
     from Pmv.pmvPalettes import RasmolAminoSortedKeys
     from MolKit.protein import ResidueSetSelector
-    #problem this residue not in r_keyD
+    #problem this residue not in r_keyD 
     rname = txt[0:3]
     rnum = txt[3:]
     if rname not in RasmolAminoSortedKeys :#ResidueSetSelector.r_keyD.keys() :
-        print(rname)
+#        print(rname)
         rname=rname.replace(" ","")
         if len(rname) == 1 : 
             return rname+rnum
+        elif len(rname) == 0 :
+            return rname+"X"
         return rname[1]+rnum
     else :
         rname=rname.replace(" ","")
@@ -400,6 +402,19 @@ def changeR(txt):
         else :
             r1n=rname
         return r1n+rnum
+
+def restoreR(txt):
+    from Pmv.pmvPalettes import RasmolAminoSortedKeys
+    from MolKit.protein import ResidueSetSelector
+    #problem this residue not in r_keyD 
+    rname = txt
+    if rname not in ResidueSetSelector.r_keyD.values() :#ResidueSetSelector.r_keyD.keys() :
+        return rname
+    else :
+        for k in ResidueSetSelector.r_keyD:
+            if rname == ResidueSetSelector.r_keyD[k]:
+                return k
+    return rname
 
 def patchRasmolAminoColor():
     from Pmv.pmvPalettes import RasmolAmino,RasmolAminoSortedKeys

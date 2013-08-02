@@ -53,7 +53,7 @@ import os
 #cmds.confirmDialog( title='About ePMV', message=about, button=['OK'], 
 #                           defaultButton='OK')
                            
-#MGL_ROOT="/Library/MGLTools/1.5.6.up"
+MGL_ROOT="/Library/MGLTools/latest"
 
 prefpath=cmds.internalVar(userPrefDir=True)
 os.chdir(prefpath)
@@ -74,7 +74,9 @@ elif os.path.isfile(mgldirfile) :
 else :
     cmds.confirmDialog( title='ePMV', message="ePMV is not correctly installed.\n try to resinstall\n"+mgldirfile, button=['OK'], 
                            defaultButton='OK')
+MGL_ROOT="/Library/MGLTools/latest"
 print MGL_ROOT
+local = False
 ICONSDIR=MGL_ROOT+os.sep+"MGLToolsPckgs"+os.sep+"ePMV"+os.sep+"images"+os.sep+"icons"+os.sep
 print ICONSDIR
 #register plugin dir
@@ -90,9 +92,11 @@ if not local :
     if sys.platform == "win32":
         sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
     else :
-        sys.path.insert(1,sys.path[0]+"/lib-tk")
-        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages')
-        sys.path.insert(0,MGL_ROOT+'/lib/python2.5/site-packages/PIL')
+        #sys.path.insert(1,sys.path[0]+"/lib-tk")
+        sys.path.insert(0,MGL_ROOT+'/lib/')
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.7/')
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.7/site-packages')
+        sys.path.insert(0,MGL_ROOT+'/lib/python2.7/site-packages/PIL')
 else :
     sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
     sys.path.insert(1,MGL_ROOT+'/MGLToolsPckgs/lib-tk')

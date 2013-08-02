@@ -8,6 +8,7 @@ try :
 except :
     import urllib
 import tarfile
+import zipfile
 import shutil
 COPY="cp"
 geturl=None
@@ -15,6 +16,9 @@ global OS
 OS = os
 #print __name__ #main
 #print dir()
+
+import ePMV
+PATH = ePMV.__path__[0]
    
 def _reporthook(numblocks, blocksize, filesize, url=None, pb = None):
     #print "reporthook(%s, %s, %s)" % (numblocks, blocksize, filesize)
@@ -89,6 +93,9 @@ in the Scripts Window""",
         self.PMVv=""
         self.upyv=""
         self.update_notes=""
+        self.newPMV =""
+        self.newePMV=""
+        self.newupy=""
 
     def setMGL(self,mgl=""):
         self.MGL_ROOT = mgl
@@ -583,6 +590,9 @@ global string $gBuffStr1;
         upPMV=False
         upePMV=False
         upupy=False
+        self.newPMV =""
+        self.newePMV=""
+        self.newupy=""
         self.update_notes = ""
         #need version
         URI="http://mgldev.scripps.edu/projects/ePMV/update_notes.txt"
@@ -599,14 +609,17 @@ global string $gBuffStr1;
             s=l.strip().split(":")
             print(s,self.PMVv,self.current_version,self.upyv)
             if s[0] == "PMV":
+                self.newPMV=s[1]
                 if s[1] != self.PMVv:
                     print(s[1],self.PMVv)
-                    upPMV = True
+                    #upPMV = True
             if s[0] == "ePMV":
+                self.newePMV=s[1]
                 if s[1] != self.current_version:
                     print(s[1],self.current_version)
                     upePMV = True
             if s[0] == "upy":
+                self.newupy=s[1]
                 if s[1] != self.upyv:
                     print(s[1],self.upyv)
                     upupy = True
@@ -632,9 +645,9 @@ global string $gBuffStr1;
             #geturl(URI, tmpFileName)
         TF=tarfile.TarFile(tmpFileName)
         dirname1=self.mgltoolsDir
+        import shutil        
         if backup :
             #rename ePMV to ePMVv
-            import shutil            
             dirname2=self.mgltoolsDir+self.PMVv
             print(dirname1,dirname2)
             if os.path.exists(dirname2):
@@ -648,52 +661,57 @@ global string $gBuffStr1;
     def update_ePMV(self,backup=False):
         #get the new epmv folder
         #do we do a backup
+        import ePMV
         patchpath = self.mgltoolsDir+os.sep
-        URI="http://mgldev.scripps.edu/projects/ePMV/updates/epmv.tar"
-        tmpFileName = self.mgltoolsDir+os.sep+"epmv.tar"
-        if not os.path.isfile(tmpFileName):
-            urllib.urlretrieve(URI, tmpFileName)
+        URI="http://mgldev.scripps.edu/projects/ePMV/updates/epmv.zip"
+        tmpFileName = self.mgltoolsDir+os.sep+"epmv.zip"
+#        if not os.path.isfile(tmpFileName):
+        urllib.urlretrieve(URI, tmpFileName)
             #geturl(URI, tmpFileName)
-        TF=tarfile.TarFile(tmpFileName)
+        zfile = zipfile.ZipFile(tmpFileName)
+        #TF=tarfile.TarFile(tmpFileName)
         dirname1=self.ePMVDIR
+        import shutil        
         if backup :
             #rename ePMV to ePMVv
-            import shutil
-            dirname2=self.ePMVDIR+self.current_version
+            dirname2=self.ePMVDIR+ePMV.__version__
             print(dirname1,dirname2)
             if os.path.exists(dirname2):
                 shutil.rmtree(dirname2,True)
             shutil.copytree (dirname1, dirname2)
         if os.path.exists(dirname1):
             shutil.rmtree(dirname1,True)           
-        TF.extractall(patchpath)
-        os.remove(tmpFileName)
+        zfile.extractall(patchpath)
+#        os.remove(tmpFileName)
         
     def update_upy(self,backup=False):
+        import upy
         patchpath = self.mgltoolsDir+os.sep
-        URI="http://mgldev.scripps.edu/projects/ePMV/updates/upy.tar"
-        tmpFileName = self.mgltoolsDir+os.sep+"upy.tar"
-        if not os.path.isfile(tmpFileName):
-            urllib.urlretrieve(URI, tmpFileName)
+        URI="http://mgldev.scripps.edu/projects/ePMV/updates/upy.zip"
+        tmpFileName = self.mgltoolsDir+os.sep+"upy.zip"
+#        if not os.path.isfile(tmpFileName):
+        urllib.urlretrieve(URI, tmpFileName)
             #geturl(URI, tmpFileName)
-        TF=tarfile.TarFile(tmpFileName)
+#        TF=tarfile.TarFile(tmpFileName)
+        zfile = zipfile.ZipFile(tmpFileName)
+
         dirname1=self.mgltoolsDir+os.sep+"upy"
+        import shutil        
         if backup :
             #rename ePMV to ePMVv
-            import shutil
-            dirname2=dirname1+self.upyv
+            dirname2=dirname1+upy.__version__
             print(dirname1,dirname2)
             if os.path.exists(dirname2):
                 shutil.rmtree(dirname2,True)
             shutil.copytree (dirname1, dirname2)
         if os.path.exists(dirname1):
             shutil.rmtree(dirname1,True)           
-        TF.extractall(patchpath)
-        os.remove(tmpFileName)
+        zfile.extractall(patchpath)
+#        os.remove(tmpFileName)
 
     def update(self,pmv=False,epmv=False,upy=False,backup=False):
 #        if pmv : 
-#            self.update_PMV(backup=backup)
+#           self.update_PMV(backup=backup)
         if epmv :
             self.update_ePMV(backup=backup)
         if upy:
@@ -708,7 +726,7 @@ global string $gBuffStr1;
         os.system(cmd)
 
     def addExtensionToFile(self,string):
-        f=open(self.currDir+os.sep+'extension'+os.sep+'liste.txt','a')
+        f=open(PATH+os.sep+'extension'+os.sep+'liste.txt','a')
         f.write(string+"\n")
         f.close()
 
@@ -729,7 +747,7 @@ global string $gBuffStr1;
 
     def getExtensionDirFromFile(self):
         #we get the soft dir from a file in Pmv/hostappinterface/epmv_dir.txt
-        fname=self.currDir+os.sep+'extension'+os.sep+'liste.txt'
+        fname=PATH+os.sep+'extension'+os.sep+'liste.txt'
         if not os.path.isfile(fname):
             f=open(fname,'w')
             f.write("#extension dir\n")

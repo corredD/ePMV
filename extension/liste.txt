@@ -1,4 +1,4 @@
 #put your extension name and directory here
-modeller:/Library/modeller-9.10
+modeller:/Library/modeller-9.11
 pymol:/Library/Python/2.5/site-packages/
 

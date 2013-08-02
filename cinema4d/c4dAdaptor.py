@@ -6,14 +6,13 @@
 #
 #
 #############################################################################
-
+import upy
+c4dHelper = upy.getHelperClass()
 from ePMV.epmvAdaptor import epmvAdaptor
-from upy.cinema4d import c4dHelper
 
 import c4d
-from c4d import gui
 
-from MolKit.protein import Protein
+from MolKit.protein import Protein,Chain
 from Pmv.pmvPalettes import AtomElements
 #from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
 #from Pmv.pmvPalettes import RasmolAmino, RasmolAminoSortedKeys
@@ -34,7 +33,7 @@ class c4dAdaptor(epmvAdaptor):
     """
 
     def __init__(self,gui=False,mv=None,debug=0):
-        self.helper = c4dHelper.c4dHelper()
+        self.helper = c4dHelper()
         epmvAdaptor.__init__(self,mv,host='c4d',debug=debug)
         self.MAX_LENGTH_NAME = 20
         self.soft = 'c4d'
@@ -79,6 +78,7 @@ class c4dAdaptor(epmvAdaptor):
         self._resetProgressBar = self.helper.resetProgressBar
 #        self._render = self.helper.render
         self.rep = self._getCurrentScene().GetDocumentName()
+        self.keywords["ribcolor"]={"name":"use vertex color for ribbon geometry","value":False,"type":"checkbox"}
 #    def _progressBar(self,progress,label):
 #        #the progessbar use the StatusSetBar
 #        c4d.StatusSetText(label)
@@ -141,12 +141,16 @@ class c4dAdaptor(epmvAdaptor):
 #                iMe[atn],ob=self.helper.Sphere(name+'_'+atn,
 #                                                     res=segments,
 #                                                     mat = atn)
-                iMe[atn] = self.helper.setInstance("mesh_"+atn+"_"+name,baseShape)
+                if self.use_instances : 
+                    iMe[atn] = self.helper.setInstance("mesh_"+atn+"_"+name,baseShape)
+                else :
+                    iMe[atn] = self.helper.newClone("mesh_"+atn+"_"+name,basesphere)
                 self.helper.scaleObj(iMe[atn],float(rad))
                 #iMe[atn]=c4d.BaseObject(c4d.Osphere)
                 self.helper.addObjectToScene(doc,atparent,parent=baseparent)
                 self.helper.addObjectToScene(doc,iMe[atn],parent=atparent)
-                iMe[atn]=atparent   
+                if self.use_instances : 
+                    iMe[atn]=atparent   
         return iMe
 
     def _changeColor(self,geom,colors,perVertex=True,proxyObject=True,pb=False):
@@ -161,6 +165,8 @@ class c4dAdaptor(epmvAdaptor):
         if hasattr(geom,"name") :
             if geom.name[:4] in ['secondarystructure','Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
                 proxyObject=False
+                if self.ribcolor :
+                    proxyObject=True
         if objToColor is None :
             if type(geom) is str :
                 objToColor = self.helper.getObject(geom)
@@ -172,7 +178,7 @@ class c4dAdaptor(epmvAdaptor):
                     objToColor = geom
             else :
                 objToColor = geom
-        self.helper.changeColor(objToColor,colors,perVertex=perVertex,
+        self.helper.changeColor(self.helper.getName(objToColor),colors,perVertex=perVertex,
                                     proxyObject=proxyObject,pb=pb)
 
     def _armature(self,name,atomset,coords=None,root=None,scn=None):
@@ -187,6 +193,17 @@ class c4dAdaptor(epmvAdaptor):
                                           root=root,scn=scn)
         return object,bones
 
+    def _updateArmature(self,name,atomset,coords=None,root=None,scn=None):
+        scn=self.helper.getCurrentScene()
+        names = None
+        if coords is not None :
+            c = coords    
+        else :
+            c = atomset.coords
+            names = [x.full_name().replace(":","_") for x in atomset]
+        self.helper.updateArmature(name,c,listeName=names,
+                                          root=root,scn=scn)
+        
     def _metaballs(self,name,coords,radius,scn=None,root=None):
         #by default we build the clouds metaballs...maybe could do on particle
         basename = name.split("_")[0] #basename form : mol.name+"_metaball"
@@ -199,7 +216,8 @@ class c4dAdaptor(epmvAdaptor):
                                            coords=coords)
         return [None,metab]
         
-    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None,scale=1.0,Res=32,
+
+    def _instancesAtomsSphere_full(self,name,x,iMe,scn,mat=None,scale=1.0,Res=32,
                             R=None,join=0,geom=None,dialog=None,pb=False):
         #radius made via baseMesh...
         #except for balls, need to scale?#by default : 0.3? 
@@ -408,7 +426,69 @@ class c4dAdaptor(epmvAdaptor):
 #                    toggleDisplay(o,display)
 #                    if needRedraw : updateObjectPos(o,atms.coords) 
 
+    def _editLines1(self,molecules,atomSets):
+        scn = self.helper.getCurrentScene()
+        sel=atomSets[0]
+        ch={}
+        mol = sel.top.uniq
+        for at in sel:
+            c = at.parent.parent
+            if c not in ch :
+                ch[c] = [[],[]]
+            ch[c][0].append(at.coords)
+            bonds= at.bonds
+            indices = [(x.atom1._bndIndex_,
+                                             x.atom2._bndIndex_) for x in bonds]
+            ch[c][1].extend(indices)
+        for c in ch :
+            parent = self.helper.getObject(c.full_name())
+            lines = self.helper.getObject(c.full_name()+'_line')
+            if lines == None :
+                    arr = c4d.BaseObject(c4d.Oatomarray)
+                    arr.SetName(c.full_name()+'_lineds')
+                    arr[1000] = 0.1 #radius cylinder
+                    arr[1001] = 0.1 #radius sphere
+                    arr[1002] = 3 #subdivision
+                    self.helper.addObjectToScene(scn,arr,parent=parent) 
+                    lines = self.helper.createsNmesh(c.full_name()+'_line',
+                                                     ch[c][0],
+                                                     None,ch[c][1])
+                    self.helper.addObjectToScene(scn,lines[0],parent=arr)
+                    mol.geomContainer.geoms[c.full_name()+'_line'] = lines
+            else :
+                    self.helper.updatePoly(lines,vertices=ch[c][0],faces=ch[c][1])
+
     def _editLines(self,molecules,atomSets):
+        print "editLines"
+        scn = self.helper.getCurrentScene()
+        sel=atomSets[0]
+        ch={}
+        mol = sel[0].getParentOfType(Protein)
+        v = mol.geomContainer.geoms["bonded"].getVertices()#not update ?
+        f = mol.geomContainer.geoms["bonded"].getFaces()
+        parent = self.helper.getObject(mol.full_name())
+        lines = self.helper.getObject(mol.full_name()+'_line')
+        arr = self.helper.getObject(mol.full_name()+'_lineds')
+        if lines == None :
+                arr = c4d.BaseObject(c4d.Oatomarray)
+                arr.SetName(mol.full_name()+'_lineds')
+                arr[1000] = 0.1 #radius cylinder
+                arr[1001] = 0.1 #radius sphere
+                arr[1002] = 3 #subdivision
+                self.helper.addObjectToScene(scn,arr,parent=parent) 
+                lines = self.helper.createsNmesh(mol.full_name()+'_line',
+                                                 v,
+                                                 None,f)
+                self.helper.addObjectToScene(scn,lines[0],parent=arr)
+                mol.geomContainer.geoms[mol.full_name()+'_line'] = lines
+        else :
+                print "what"
+#                self.helper.updatePoly(lines,vertices=v,faces=f)
+#                self.helper.redoPoly(lines,v,f,parent=arr)
+                self.helper.updateMesh(lines,vertices=v,faces = f)
+
+
+    def _editLinesWorking(self,molecules,atomSets):            
         scn = self.helper.getCurrentScene()
         for mol, atms, in map(None, molecules, atomSets):
             #check if line exist

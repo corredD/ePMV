@@ -80,17 +80,58 @@ if not local :
 else :
     sys.path.append(MGL_ROOT+'/MGLToolsPckgs/PIL')
 
-from Blender import Draw
-
-import upy
-upy.setUIClass('blender24')
+#from Blender import Draw
 
 from ePMV import epmvGui
-epmvgui = epmvGui.epmvGui()
-epmvgui.setup(rep="epmv",mglroot=MGL_ROOT,host='blender24')
-#
-#define the default options
-epmvgui.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,
-                useLog = False,doCloud=False,forceFetch=False)
-epmvgui.epmv.doLight = True
-Draw.Register(epmvgui.CreateLayout, epmvgui.CoreMessage, epmvgui.Command)
+#epmvgui = epmvGui.epmvGui()
+#epmvgui.setup(rep="epmv",mglroot=MGL_ROOT,host='blender24')
+##
+##define the default options
+#epmvgui.epmv.Set(bicyl=True,use_progressBar = False,doLight = True,doCamera = True,
+#                useLog = False,doCloud=False,forceFetch=False)
+#epmvgui.epmv.doLight = True
+#Draw.Register(epmvgui.CreateLayout, epmvgui.CoreMessage, epmvgui.Command)
+
+#be sure to use a unique ID obtained from www.plugincafe.com
+#from Blender import Draw
+PLUGIN_ID = 1027431
+import upy
+upy.setUIClass()
+
+plugTypeClass,opType = upy.getPluginClass(plug="command")#= operator in blender
+
+from ePMV import epmvGui
+
+print ((plugTypeClass))
+
+class epmv_Dialog(plugTypeClass):
+    def setgui(self,dname):
+        self.gui = epmvGui.epmvGui()
+        self.gui.setup(rep="epmv",mglroot=MGL_ROOT,host=upy.host)
+        self.gui.epmv.Set(bicyl=True,use_progressBar = False,doLight = False,doCamera = False,
+        useLog = False,forceFetch=False)
+        self.hasGui = True
+        self.gui.display()
+        
+    def resetgui(self,dname):
+        self.gui = epmvGui.epmvGui()
+        self.gui.setup(rep="epmv",mglroot=MGL_ROOT,host='blender25')
+        self.gui.epmv.Set(bicyl=True,use_progressBar = False,doLight = False,doCamera = False,
+                useLog = False,forceFetch=False)
+        self.gui.display()
+        
+epmv_plugin = epmv_Dialog(name="ePMV",pluginId=PLUGIN_ID,
+                              tooltip="This is an embedded Molecular Viewer",
+                              hasGui=True)
+
+epmv_plugin.setIcon(image_name="pmv.tif")
+
+if "__res__" in locals() :
+    epmv_plugin.register(epmv_Dialog,Object=epmv_plugin,menuadd={"head":None,"mt":None},res=__res__)
+else :
+    epmv_plugin.register(epmv_Dialog,Object=epmv_plugin,menuadd={"head":None,"mt":None})
+
+def register():
+    print (__name__)
+def unregister():
+    pass

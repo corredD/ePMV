@@ -7,7 +7,7 @@ Cinema4D: 12
 __author__ = "Ludovic Autin, Graham Johnson"
 __url__ = ["http://mgldev.scripps.edu/projects/ePMV/wiki/index.php/Main_Page",
            'http://mgldev.scripps.edu/projects/ePMV/update_notes.txt']
-__version__="0.4.7"
+__version__="0.4.8"
 __doc__ = "ePMV v"+__version__
 __doc__+"""\
 Use cinema4d as a molecular viewer

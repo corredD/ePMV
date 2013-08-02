@@ -11,11 +11,18 @@ import os
 import ePMV
 from ePMV.epmvAdaptor import epmvAdaptor
 #from ePMV.blender import blenderHelper
-from upy.blender.v257 import blenderHelper
 
 import bpy
 import mathutils
 
+blender_version = bpy.app.version
+if blender_version < (2,60,0):
+    from upy.blender.v257 import blenderHelper
+elif blender_version >= (2,60,0) and blender_version < (2,63,0): #2.62
+    from upy.blender.v262 import blenderHelper
+elif blender_version >= (2,63,0) : #2.62
+    from upy.blender.v263 import blenderHelper
+    
 from MolKit.protein import ResidueSetSelector,Residue,Chain, Protein
 from Pmv.pmvPalettes import AtomElements
 from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
@@ -69,30 +76,35 @@ class blenderAdaptor(epmvAdaptor):
         self.rep = "epmv"
         self.setupMaterials()
         self.matlist = self.helper.getAllMaterials()
+        self.prevFrame = None
+        self.callback = None
         if gui :
             self.createGUI()
 
     def synchronize(self):
-        pass
-#        prefdir = Blender.Get('uscriptsdir')
-#        if prefdir is None:
-#            prefdir = Blender.Get('scriptsdir')        
-#        self.helper.addTextFile(name="epmv_synchro",
-#                                file=prefdir+os.sep+"epmv_blender_update.py")
-#        scene = self.helper.getCurrentScene()
-#        #should load the script for scene update...
-#        if self.synchro_realtime :
-#            if not hasattr(self,"epmv_synchro") or not self.epmv_synchro:
-#                scene.addScriptLink("epmv_synchro", "FrameChanged")
-#                self.epmv_synchro = True
-#        else :
-#            scene.clearScriptLinks()
-#            self.epmv_synchro = False
-        #Parameters:
-        # * text (string) - the name of an existing Blender Text.
-        # * event (string) - "FrameChanged", "OnLoad", "OnSave", "Redraw" or "Render".
-        #sc.clearScriptLinks(links=None)
-        
+        if self.synchro_timeline :
+            self.synchronize_timeline()
+        else :
+            if self.callback != None :
+                bpy.app.handlers.frame_change_pre.pop(self.callback)
+                
+    def synchronize_timeline(self): 
+        def callback(scene):
+            traj = self.gui.current_traj
+            print("Frame Change", scene.frame_current)
+            frame = scene.frame_current
+            st,ft=self.synchro_ratio
+            doit = True
+            if (self.prevFrame != None) :
+                if (frame == self.prevFrame) :
+                    doit = False
+            if (frame % ft) == 0 and doit:   
+                step = frame * st
+                self.updateData(traj,step)
+            #self.updateData(traj,step)
+        self.callback = callback
+        bpy.app.handlers.frame_change_pre.append(self.callback)
+            
     def _resetProgressBar(self,max):
         pass
 
@@ -130,102 +142,111 @@ class blenderAdaptor(epmvAdaptor):
         basesphere=self.helper.getObject("basesphere")
         #print "basesphere ",basesphere
         if basesphere is None : 
+            print ("basesphere")
             basesphere,meshsphere = self.helper.Sphere("basesphere",res=segments)
             self.helper.toggleDisplay(basesphere,display=False)
         if scene is not None : iObj=[]
-        for atn in  list(self.AtmRadi.keys()):
+        for atn in list(self.AtmRadi.keys()):
             rad=float(self.AtmRadi[atn])#float(cpkRad)+float(AtmRadi[atn])*float(scale)
             iMe[atn]= self.helper.getMesh("m_"+name+'_'+atn)
             if iMe[atn] is None :
-                ob,iMe[atn]=self.helper.Sphere(name+'_'+atn,
+                iMe[atn],me=self.helper.Sphere(name+'_'+atn,
                                                      res=segments,
                                                      mat = atn)
                 Smatrix=mathutils.Matrix.Scale(float(rad)*2., 4)
-                bpy.ops.object.mode_set(mode='EDIT')
-                #Select all the vertices
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.transform.resize(value=(float(rad),float(rad),float(rad)))
-                bpy.ops.object.mode_set(mode='OBJECT')
+#                bpy.ops.object.mode_set(mode='EDIT')
+#                #Select all the vertices
+#                print ("basesphere scale")
+#                bpy.ops.mesh.select_all(action='SELECT')
+#                print ("basesphere scale",float(rad))
+#                bpy.context.scene.update()
+#                bpy.ops.transform.resize(value=(float(rad),float(rad),float(rad)))
+#                print ("basesphere scale")
+#                bpy.ops.object.mode_set(mode='OBJECT')
+                print ("basesphere scale ok")
                 #iMe[atn].matrix_world *= Smatrix
-#                iMe[atn].transform(Smatrix)
+                me.transform(Smatrix)
                 if scene != None : 
-                    iObj.append(ob)
-                    self.helper.toggleDisplay(ob,display=False)
+                    iObj.append(iMe[atn])
+                    print ("toggle it",iMe[atn])
+                    self.helper.toggleDisplay(iMe[atn],display=False)
         cpk=self.helper.getObject(name)
         if scene !=  None and cpk is None : 
             cpk = self.helper.newEmpty(name)
+            print ("cpk ",name)
 #            self.helper.addObjectToScene(scene,cpk,parent=parent)
             self.helper.toggleDisplay(cpk,display=False)
+            print ("toggle")
             self.helper.reParent(iObj,cpk)
-            #print 'iobj ',len(iObj)
+        print ('done')
         return iMe
 
-    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
-                             join=0,geom=None,pb=False):
-        if scn == None :
-            scn=self.helper.getCurrentScene()
-        objs=[]
-        mol = x[0].getParentOfType(Protein)
-        n='S'
-        nn="cpk"
-        if name.find('balls') != (-1) : 
-            n='B'
-            nn="balls"
-        if geom is not None : 
-            coords=geom.getVertices()
-        else : 
-            coords = x.coords
-        hiera = 'default'
-        #what about chain...
-#        parent=self.findatmParentHierarchie(x[0],n,hiera)
-        for c in mol.chains:
-            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn]) 
-            obj=[]
-            oneparent = True 
-            atoms = c.residues.atoms
-#            parent=self.findatmParentHierarchie(atoms[0],n,hiera)
-            for j in range(len(atoms.coords)):
-                at=atoms[j]
-                atN=at.name
-                if atN[0] not in list(AtomElements.keys()) : atN="A"
-                #print atN
-                #fullname = at.full_name()
-                atC=atoms.coords[j]#at._coords[0]
-                #print atC, fullname,at.full_name()
-                mesh=iMe[atN[0]]
-                if type(mesh) == str :
-                    mesh=self.helper.getMesh(mesh)
-                atfname = self.atomNameRule(at,n)
-                #at.full_name().replace("'","b")+"n"+str(at.number)
-                #there is a string lenght limitation in blender object name...this is too long
-                #print "fullname ",atfname
-                #OBJ=scn.objects.new(mesh,atfname)
-                res = bpy.ops.object.add(type='MESH',location=atC)
-                OBJ = bpy.context.object
-                OBJ.name = atfname
-                OBJ.data = mesh
-                #print "obj ",OBJ.name
-#                self.helper.translateObj(OBJ,atC)
-                self.helper.setOneMaterial(OBJ,self.helper.getMaterial(atN[0]),objmode =True)
-#                OBJ.colbits = 1<<0
-#                p = findatmParentHierarchie(at,n,hiera)
-#                if parent != p : 
-#                    p.makeParent([OBJ])
-#                    oneparent = False
-                self.helper.toggleDisplay(OBJ,False)
-                obj.append(OBJ)
-                if pb and (j%50) == 0:
-                    progress = float(j) / len(coords)
-                    #Blender.Window.DrawProgressBar(progress, 'creating '+name+' spheres')
-            if oneparent :
-                self.helper.reParent(obj,parent)#.makeParent(obj)
-            objs.extend(obj)
-#        if join==1 : 
-#            obj[0].join(obj[1:])
-#            for ind in range(1,len(obj)):
-#                scn.unlink(obj[ind])
-#            obj[0].setName(name)
-        return  objs
+#    def _instancesAtomsSphere(self,name,x,iMe,scn,mat=None, scale=1.0,Res=32,R=None,
+#                             join=0,geom=None,pb=False):
+#        if scn == None :
+#            scn=self.helper.getCurrentScene()
+#        objs=[]
+#        mol = x[0].getParentOfType(Protein)
+#        n='S'
+#        nn="cpk"
+#        if name.find('balls') != (-1) : 
+#            n='B'
+#            nn="balls"
+#        if geom is not None : 
+#            coords=geom.getVertices()
+#        else : 
+#            coords = x.coords
+#        hiera = 'default'
+#        #what about chain...
+##        parent=self.findatmParentHierarchie(x[0],n,hiera)
+#        for c in mol.chains:
+#            parent=self.helper.getObject(mol.geomContainer.masterGeom.chains_obj[c.name+"_"+nn]) 
+#            obj=[]
+#            oneparent = True 
+#            atoms = c.residues.atoms
+##            parent=self.findatmParentHierarchie(atoms[0],n,hiera)
+#            for j in range(len(atoms.coords)):
+#                at=atoms[j]
+#                atN=at.name
+#                if atN[0] not in list(AtomElements.keys()) : atN="A"
+#                #print atN
+#                #fullname = at.full_name()
+#                atC=atoms.coords[j]#at._coords[0]
+#                #print atC, fullname,at.full_name()
+#                mesh=iMe[atN[0]]
+#                if type(mesh) == str :
+#                    mesh=self.helper.getMesh(mesh)
+#                atfname = self.atomNameRule(at,n)
+#                #at.full_name().replace("'","b")+"n"+str(at.number)
+#                #there is a string lenght limitation in blender object name...this is too long
+#                #print "fullname ",atfname
+#                #OBJ=scn.objects.new(mesh,atfname)
+#                res = bpy.ops.object.add(type='MESH',location=atC)
+#                OBJ = bpy.context.object
+#                OBJ.name = atfname
+#                OBJ.data = mesh
+#                #print "obj ",OBJ.name
+##                self.helper.translateObj(OBJ,atC)
+#                self.helper.setOneMaterial(OBJ,self.helper.getMaterial(atN[0]),objmode =True)
+##                OBJ.colbits = 1<<0
+##                p = findatmParentHierarchie(at,n,hiera)
+##                if parent != p : 
+##                    p.makeParent([OBJ])
+##                    oneparent = False
+#                self.helper.toggleDisplay(OBJ,False)
+#                obj.append(OBJ)
+#                if pb and (j%50) == 0:
+#                    progress = float(j) / len(coords)
+#                    #Blender.Window.DrawProgressBar(progress, 'creating '+name+' spheres')
+#            if oneparent :
+#                self.helper.reParent(obj,parent)#.makeParent(obj)
+#            objs.extend(obj)
+##        if join==1 : 
+##            obj[0].join(obj[1:])
+##            for ind in range(1,len(obj)):
+##                scn.unlink(obj[ind])
+##            obj[0].setName(name)
+#        return  objs
 
     def _changeColor(self,geom,colors,perVertex=True,perObjectmat=None,pb=False):
         if hasattr(geom,'mesh'):
