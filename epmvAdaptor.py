@@ -3746,15 +3746,15 @@ class epmvAdaptor(object):
     #            print name
     #            basemesh =  self.helper.getMesh("mesh_basesphere")
                 if name[-1] not in self.AtmRadi :
-                    name="A"
+                    name=name[:-1]+"A"
                 factor=float(cpkRad)+float(self.AtmRadi[name[-1]])*float(scale)
-    #            print ("sphere ", name)                
+                print ("sphere ", name)                
                 if hasattr(self,'spherestype'):
                     self.helper.updateSphereMesh(name,basemesh="mesh_basesphere",
-                                                 scale=factor,typ=self.spherestype)
+                                                 scale=factor,typ=self.spherestype,instance_master=False)
                 else :
                     self.helper.updateSphereMesh(name,basemesh="mesh_basesphere",
-                                                 scale=factor)
+                                                 scale=factor,instance_master=False)
 
                                         
     def updateMolAtomCoord(self,mol,index=-1,types='cpk'):
