@@ -730,7 +730,7 @@ class ExtrudeSecondaryStructureCommand(MVCommand):
                     # test here if all the residues of the sselt are
                     # in the residue set used
                     # to compute the sheet2D. if not remove the ss.
-                    if SS.sheet2D is None:
+                    if not hasattr(SS,"sheet2D") or SS.sheet2D is None:
                         continue
                     if filter(lambda x, rs = SS.sheet2D.resInSheet:
                               not x in rs, SS.residues):
