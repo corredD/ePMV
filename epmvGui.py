@@ -1317,8 +1317,8 @@ The Scripps Research Insititute"""
         self.pym = None
         self.register = None
         self.current_mol = None
-        #if  self.host != 'qt': #self.host != 'blender25' and
-        #    self.checkRegistration()
+        if  self.host != 'qt': #self.host != 'blender25' and
+            self.checkRegistration()
         #setupoption?
         self.firstTime={}
         self.firstTime["ss"] = True
@@ -2423,7 +2423,7 @@ The Scripps Research Insititute"""
     def getDsInfo_cb(self,name,selString,display,key=None):
         if name is None or name == "":
             return None,None,None,None
-        print ("getDsInfo_cb "+name,type(name))
+        print ("getDsInfo_cb "+name,type(name),selString)
         if name not in list(self.mv.selections.keys()):
             mol = self.getSelectionMol(name)
             if mol is None:

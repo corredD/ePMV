@@ -743,10 +743,15 @@ class epmvAdaptor(object):
             #should be #B_MOL:CHAIN:RESIDUE:ATOMS
             #thus atoms = 
             #sel=mol.name astr[3]
+        elif selection[:5]=="(Mol:" :
+            if mol == None : sel = ''
+            else : sel=mol.name
+        else :
+            sel=selection
         selection = self.mv.select(str(sel),negate=False, only=True, xor=False, 
                                    log=0, intersect=False)
         if not isinstance(selection,Atom) : selection = selection.findType(Atom)
-#        print("ok sel", len(selection),selection)#,selection
+        print("ok sel",str(sel), selString,len(selection),selection)#,selection
         return sel,selection
 
     def getSelectionCommand(self,selection,mol):
