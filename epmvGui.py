@@ -1243,7 +1243,7 @@ Develloped in the Molecular Graphics Laboratory directed by Arthur Olson.
 The Scripps Research Insititute"""
 
     __url__ = ["http://epmv.scripps.edu",
-           'http://mgldev.scripps.edu/projects/ePMV/update_notes.txt',
+           'https://upy.googlecode.com/svn/branches/updates/update_notes_all.json',
            'http://epmv.scripps.edu/documentation/citations-informations',]
 
     host=""
