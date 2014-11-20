@@ -8,30 +8,33 @@
 #############################################################################
 import sys
 import os
-from ePMV import epmvAdaptor
-#from ePMV.epmvAdaptor import epmvAdaptor
-from upy.autodesk3dsmax.v2013 import maxHelper
 
+#from ePMV.epmvAdaptor import epmvAdaptor
+from upy.autodesk3dsmax.v2015 import maxHelper
+print ("helper is ",maxHelper)
 from ePMV.lightGridCommands import addGridCommand
 from ePMV.lightGridCommands import readAnyGrid
 from ePMV.lightGridCommands import IsocontourCommand
-
+print ("probalem loading mvcommand ?")
 from Pmv.mvCommand import MVCommand
+print ("probalem loading molecularviewer ?")
 from Pmv.moleculeViewer import MoleculeViewer
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
 from Pmv.moleculeViewer import DeleteAtomsEvent, EditAtomsEvent
 from Pmv.deleteCommands import BeforeDeleteMoleculesEvent,AfterDeleteAtomsEvent
 from Pmv.displayCommands import BindGeomToMolecularFragment
 from Pmv.trajectoryCommands import PlayTrajectoryCommand
-
+print ("probalem loading mvcommand 2?")
 from mglutil.util.recentFiles import RecentFiles
-
+print ("probalem loading mvcommand 3?")
 from MolKit.protein import Protein
 from Pmv.pmvPalettes import AtomElements
 #from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
 #from Pmv.pmvPalettes import RasmolAmino, RasmolAminoSortedKeys
 #from Pmv.pmvPalettes import Shapely
 #from Pmv.pmvPalettes import SecondaryStructureType
+
+from ePMV import epmvAdaptor
 
 class maxAdaptor(epmvAdaptor.epmvAdaptor):
     """
@@ -46,6 +49,7 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
     """
 
     def __init__(self,gui=False,mv=None,debug=0):
+        print ("init Max Adaptor")
         self.host = "3dsmax"
         self.helper = maxHelper.maxHelper()
         epmvAdaptor.epmvAdaptor.__init__(self,mv,host='3dsmax',debug=debug)
@@ -94,113 +98,105 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
         self._resetProgressBar = self.helper.resetProgressBar
 #        self._render = self.helper.render
         self.rep = "MaxPlus"#self._getCurrentScene().GetDocumentName()
-#    def _progressBar(self,progress,label):
-#        #the progessbar use the StatusSetBar
-#        c4d.StatusSetText(label)
-#        c4d.StatusSetBar(int(progress*100.))
-#
-#    def _resetProgressBar(self,value):
-#        c4d.StatusClear()
 
+    def setupMV(self):
+        self.mv.browseCommands('fileCommands', package="Pmv", topCommand=0)
+        self.mv.browseCommands('bondsCommands',package='Pmv', topCommand=0)
+        self.mv.browseCommands('deleteCommands',package='Pmv', topCommand=0)
+        self.mv.browseCommands('displayCommands',
+                    commands=['displaySticksAndBalls','undisplaySticksAndBalls',
+                              'displayCPK', 'undisplayCPK',
+                              'displayLines','undisplayLines',
+                              'displayBackboneTrace','undisplayBackboneTrace',
+                              'DisplayBoundGeom'], package='Pmv', topCommand=0)
+        self.mv.browseCommands('editCommands',package='Pmv', topCommand=0)
+        self.mv.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
+        self.mv.browseCommands('beadedRibbonsCommands', package="ePMV", topCommand=0)
+        self.mv.browseCommands("splineCommands", package="Pmv", topCommand=0)
+        self.mv.browseCommands("coarseMolSurfaceCommands", package="Pmv", topCommand=0)
+        self.mv.browseCommands('msmsCommands',
+                               commands=['computeMSMS','displayMSMS', 'undisplayMSMS',
+                                         'readMSMS', 'saveMSMS', 'computeSESAndSASArea',],
+                               package='Pmv', topCommand=0)
+        self.mv.browseCommands('selectionCommands', commands=['select', 'deselect',
+                                                   'clearSelection', 'saveSet',
+                                                   'invertSelection',
+                                                   'selectSet',
+                                                   'selectFromString',
+                                                   'directSelect','selectHeteroAtoms'],
+                                package='Pmv', topCommand=0)
+        self.mv.browseCommands('APBSCommands_2x', package='ePMV.pmv_dev', topCommand=0)
+        self.mv.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)        
+        self.mv.browseCommands('buildDNACommands',package='ePMV.pmv_dev', topCommand=0)#commands=['buildDNA']
+        self.mv.browseCommands('repairCommands', package='Pmv', topCommand=0)
+        self.mv.browseCommands("dejaVuCommands", package="ViewerFramework", topCommand=0)
+        self.mv.browseCommands('displayCommands',
+                    commands=['showMolecules'],
+                    package='Pmv', topCommand=0)
+        self.mv.browseCommands('helpCommands',package ='Pmv', topCommand =0)
 
-#    def setupMV(self):
-#        self.mv.browseCommands('fileCommands', package="Pmv", topCommand=0)
-#        self.mv.browseCommands('bondsCommands',package='Pmv', topCommand=0)
-#        self.mv.browseCommands('deleteCommands',package='Pmv', topCommand=0)
-#        self.mv.browseCommands('displayCommands',
-#                    commands=['displaySticksAndBalls','undisplaySticksAndBalls',
-#                              'displayCPK', 'undisplayCPK',
-#                              'displayLines','undisplayLines',
-#                              'displayBackboneTrace','undisplayBackboneTrace',
-#                              'DisplayBoundGeom'], package='Pmv', topCommand=0)
-#        self.mv.browseCommands('editCommands',package='Pmv', topCommand=0)
-#        self.mv.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
-#        self.mv.browseCommands('beadedRibbonsCommands', package="ePMV", topCommand=0)
-#        self.mv.browseCommands("splineCommands", package="Pmv", topCommand=0)
-#        self.mv.browseCommands("coarseMolSurfaceCommands", package="Pmv", topCommand=0)
-#        self.mv.browseCommands('msmsCommands',
-#                               commands=['computeMSMS','displayMSMS', 'undisplayMSMS',
-#                                         'readMSMS', 'saveMSMS', 'computeSESAndSASArea',],
-#                               package='Pmv', topCommand=0)
-#        self.mv.browseCommands('selectionCommands', commands=['select', 'deselect',
-#                                                   'clearSelection', 'saveSet',
-#                                                   'invertSelection',
-#                                                   'selectSet',
-#                                                   'selectFromString',
-#                                                   'directSelect','selectHeteroAtoms'],
-#                                package='Pmv', topCommand=0)
-#        self.mv.browseCommands('APBSCommands_2x', package='ePMV.pmv_dev', topCommand=0)
-#        self.mv.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)        
-#        self.mv.browseCommands('buildDNACommands',package='ePMV.pmv_dev', topCommand=0)#commands=['buildDNA']
-#        self.mv.browseCommands('repairCommands', package='Pmv', topCommand=0)
-#        self.mv.browseCommands("dejaVuCommands", package="ViewerFramework", topCommand=0)
-#        self.mv.browseCommands('displayCommands',
-#                    commands=['showMolecules'],
-#                    package='Pmv', topCommand=0)
-#        self.mv.browseCommands('helpCommands',package ='Pmv', topCommand =0)
-#
-#        self.mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
-#        self.mv.browseCommands('setangleCommands', package='Pmv', topCommand=0)
-#        self.mv.setUserPreference(('Transformation Logging', 'final'), topCommand=0)
-#        self.mv.setUserPreference(('Show Progress Bar', 'show'), topCommand=0)
-#        self.mv.setUserPreference(('Sharp Color Boundaries for MSMS', 'blur'), topCommand=0)
-#        self.mv.browseCommands('serverCommands', commands=[
-#                    'startServer', 'connectToServer', 'StartWebControlServer'],
-#                    package='ViewerFramework', topCommand=0)
-#        self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
-#        self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
-#        self.mv.addCommand(PlayTrajectoryCommand(),'playTrajectory',None)
-#        self.mv.addCommand(addGridCommand(),'addGrid',None)
-#        self.mv.addCommand(readAnyGrid(),'readAny',None)
-#        self.mv.addCommand(IsocontourCommand(),'isoC',None)
-#        #define the listener
-#        if self.host is not None :
-#            self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
-#            self.mv.registerListener(AddGeomsEvent, self.updateGeom)
-#            self.mv.registerListener(EditGeomsEvent, self.updateGeom)
-#            self.mv.registerListener(AfterDeleteAtomsEvent, self.updateModel)
-#            self.mv.registerListener(BeforeDeleteMoleculesEvent,self.updateModel)
-#            self.mv.addCommand(epmvAdaptor.loadMoleculeInHost(self),'_loadMol',None)            
-#            #self.mv.embedInto(self.host,debug=0)
-#            self.mv.embeded = True
-#        #compatibility with PMV
-#        self.mv.Grid3DReadAny = self.mv.readAny
-#        #mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
-#        self.mv.userpref['Read molecules as']['value']='conformations'
-#        self.mv.setUserPreference(('Read molecules as', 'conformations',), log=0)
-#        self.mv.setUserPreference(('Number of Undo', '0',), redraw=0, log=1)
-#        self.mv.setUserPreference(('Save Perspective on Exit', 'no',), log=0)
-#        self.mv.setUserPreference(('Transformation Logging', 'no',), log=0) 
-#        #should add some user preferece and be able to save it       
-#        #recentFiles Folder
-#        rcFile = self.mv.rcFolder
-#        if rcFile:
-#            rcFile += os.sep + 'Pmv' + os.sep + "recent.pkl"
-#            self.mv.recentFiles = RecentFiles(self.mv, None, filePath=rcFile,index=0)
-#        else :
-#            print("no rcFolder??")
-#        
-#        #this  create mv.hostapp which handle server/client and log event system
-#        #NOTE : need to test it in the latest version
-##        if not self.useLog : 
-##            self.mv.hostApp.driver.useEvent = True
-#        self.mv.iTraj={}
-#        
-#        self.funcColor = [self.mv.colorByAtomType,
-#                          self.mv.colorAtomsUsingDG,
-#                          self.mv.colorByResidueType,
-#                          self.mv.colorResiduesUsingShapely,
-#                          self.mv.colorBySecondaryStructure,
-#                          self.mv.colorByChains,
-#                          self.mv.colorByDomains,
-#                          self.mv.color,
-#                          self.mv.colorByProperty]
-#        self.fTypeToFc = {"ByAtom":0,"AtomsU":1,"ByResi":2,"Residu":3,
-#                          "BySeco":4,"ByChai":5,"ByDoma":6,"":7,
-#                          "ByPropN":8,"ByPropT":9,"ByPropS":10}
-#        self.mv.host = self.host
-##        mv.hostApp.driver.bicyl = self.bicyl
-#        
+        self.mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
+        self.mv.browseCommands('setangleCommands', package='Pmv', topCommand=0)
+        self.mv.setUserPreference(('Transformation Logging', 'final'), topCommand=0)
+        self.mv.setUserPreference(('Show Progress Bar', 'show'), topCommand=0)
+        self.mv.setUserPreference(('Sharp Color Boundaries for MSMS', 'blur'), topCommand=0)
+        self.mv.browseCommands('serverCommands', commands=[
+                    'startServer', 'connectToServer', 'StartWebControlServer'],
+                    package='ViewerFramework', topCommand=0)
+        self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
+        self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
+        self.mv.addCommand(PlayTrajectoryCommand(),'playTrajectory',None)
+        self.mv.addCommand(addGridCommand(),'addGrid',None)
+        self.mv.addCommand(readAnyGrid(),'readAny',None)
+        self.mv.addCommand(IsocontourCommand(),'isoC',None)
+        #define the listener
+        if self.host is not None :
+            self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
+            self.mv.registerListener(AddGeomsEvent, self.updateGeom)
+            self.mv.registerListener(EditGeomsEvent, self.updateGeom)
+            self.mv.registerListener(AfterDeleteAtomsEvent, self.updateModel)
+            self.mv.registerListener(BeforeDeleteMoleculesEvent,self.updateModel)
+            self.mv.addCommand(epmvAdaptor.loadMoleculeInHost(self),'_loadMol',None)            
+            #self.mv.embedInto(self.host,debug=0)
+            self.mv.embeded = True
+        #compatibility with PMV
+        self.mv.Grid3DReadAny = self.mv.readAny
+        #mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
+        self.mv.userpref['Read molecules as']['value']='conformations'
+        self.mv.setUserPreference(('Read molecules as', 'conformations',), log=0)
+        self.mv.setUserPreference(('Number of Undo', '0',), redraw=0, log=1)
+        self.mv.setUserPreference(('Save Perspective on Exit', 'no',), log=0)
+        self.mv.setUserPreference(('Transformation Logging', 'no',), log=0) 
+        #should add some user preferece and be able to save it       
+        #recentFiles Folder
+        rcFile = self.mv.rcFolder
+        if rcFile:
+            rcFile += os.sep + 'Pmv' + os.sep + "recent.pkl"
+            self.mv.recentFiles = RecentFiles(self.mv, None, filePath=rcFile,index=0)
+        else :
+            print("no rcFolder??")
+        
+        #this  create mv.hostapp which handle server/client and log event system
+        #NOTE : need to test it in the latest version
+#        if not self.useLog : 
+#            self.mv.hostApp.driver.useEvent = True
+        self.mv.iTraj={}
+        
+        self.funcColor = [self.mv.colorByAtomType,
+                          self.mv.colorAtomsUsingDG,
+                          self.mv.colorByResidueType,
+                          self.mv.colorResiduesUsingShapely,
+                          self.mv.colorBySecondaryStructure,
+                          self.mv.colorByChains,
+                          self.mv.colorByDomains,
+                          self.mv.color,
+                          self.mv.colorByProperty]
+        self.fTypeToFc = {"ByAtom":0,"AtomsU":1,"ByResi":2,"Residu":3,
+                          "BySeco":4,"ByChai":5,"ByDoma":6,"":7,
+                          "ByPropN":8,"ByPropT":9,"ByPropS":10}
+        self.mv.host = self.host
+#        mv.hostApp.driver.bicyl = self.bicyl
+        
 
     def synchronize(self):
         pass
@@ -239,7 +235,8 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
             baseShape = self.helper.newEmpty(name+"_shape")
             self.helper.addObjectToScene(doc,baseShape,parent=baseparent)
         basesphere=self.helper.getObject(name+"basesphere")
-        if basesphere is None : 
+        if basesphere is None :
+            #node,obj
             meshsphere,basesphere=self.helper.Sphere(name+"basesphere",res=segments,
                                                      parent=baseShape)
 #            self.helper.toggleDisplay(basesphere,display=False)
@@ -249,11 +246,12 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
             atparent=self.helper.getObject(name+"_"+atn)
             if atparent is None :
                 atparent=self.helper.newEmpty(name+"_"+atn,parent=baseparent)
-            iMe[atn]= self.helper.getMesh("mesh_"+name+'_'+atn)
+            iMe[atn]= self.helper.getObject("mesh_"+atn+"_"+name)
             if iMe[atn] is None :
 #                iMe[atn],ob=self.helper.Sphere(name+'_'+atn,
 #                                                     res=segments,
 #                                                     mat = atn)
+                #node,object
                 iMe[atn],basesphere=self.helper.Sphere("mesh_"+atn+"_"+name,res=segments,
                                                      parent=atparent,radius=float(rad))
                 #iMe[atn] = self.helper.newInstance("mesh_"+atn+"_"+name,meshsphere)#baseSphere
@@ -269,7 +267,7 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
         if hasattr(geom,'mesh'):
             if geom.name[:4] in ['Heli', 'Shee', 'Coil', 'Turn', 'Stra']:
                 proxyObject=False       
-            objToColor = geom.obj
+            objToColor = geom.obj#or the mesh ?
         elif hasattr(geom,"obj"):
             objToColor = geom.obj
         else :
@@ -298,9 +296,9 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
         else :
             c = atomset.coords
             names = [x.full_name().replace(":","_") for x in atomset]
-        #object,bones=self.helper.armature(name,c,listeName=names,
-        #                                  root=root,scn=scn)
-        return None,None#object,bones
+        object,bones=self.helper.armature(name,c,listeName=names,
+                                          root=root,scn=scn)
+        return object,bones
 
     def _metaballs(self,name,coords,radius,scn=None,root=None):
         #by default we build the clouds metaballs...maybe could do on particle

@@ -41,7 +41,8 @@ except :
     tkinter.filedialog = tkFileDialog
     import tkMessageBox
     tkinter.messagebox = tkMessageBox
-import Pmw
+#import Pmw
+Pmw = None
 #from PIL import Image, ImageTk
 import Image
 import ImageTk

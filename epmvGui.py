@@ -1262,8 +1262,9 @@ The Scripps Research Insititute"""
             #try to restore
             print("try to restore")
             epmv = self._restore('mv',rep)
-            print(epmv)
+            print("ok restore ",epmv)
             if epmv is None:
+                print ("start ePMV")
                 epmv = ePMV.epmv_start(self.host,debug=0)
                 if mglroot :
                     epmv.mglroot = mglroot
@@ -1274,6 +1275,7 @@ The Scripps Research Insititute"""
             else :
                 self.restored = True
             self._store('mv',{epmv.rep:epmv})
+        print ("epmv started")
         self.epmv = epmv
         self.mv = epmv.mv
         self.helper = self.epmv.helper
@@ -1308,8 +1310,11 @@ The Scripps Research Insititute"""
         self.y = 620
         self.w=160
         self.h=150
+        print ("epmv settitle")
         self.SetTitle(self.title)
+        print ("epmv set materials")
         self.epmv.setupMaterials()
+        print ("epmv check extension")
         self.epmv.checkExtension()
         self.initWidget()
         self.setupLayout()
@@ -1418,7 +1423,7 @@ The Scripps Research Insititute"""
         self.menuorder = ["File","Edit","Extensions","Help"]
         #submenu recentFile.
         self.submenu= None
-        if self.host == "3dsmax" : self.writeRecentFileXml()
+        #if self.host == "3dsmax" : self.writeRecentFileXml()
         if "Documents" in self.mv.recentFiles.categories:
             self.submenu={}
             for i,r in enumerate(self.mv.recentFiles.categories["Documents"]):
@@ -2110,8 +2115,8 @@ The Scripps Research Insititute"""
 #            molname = self.mv.Mols[-1].name
 #        self.epmv.testNumberOfAtoms(self.mv.Mols[-1])
         self.getData(self.mv.Mols[-1].name,adt=adt)
-        if self.host != "3dsmax" :
-            self.startingRepresentation()
+        #if self.host != "3dsmax" :
+        self.startingRepresentation()
         self.updateViewer()
 
     def loadRecentFile(self,*args):
@@ -2179,10 +2184,10 @@ The Scripps Research Insititute"""
     def loadDATA(self,filename,model=False,trajname=None,molname=None,adt=False):
         if trajname == None :
             if model :
-                if self.host != "3dsmax" :
-                    self.modelData(adt=adt)
-                else :
-                    self.modelData_cb(adt=adt)
+                #if self.host != "3dsmax" :
+                self.modelData(adt=adt)
+                #else :
+                #    self.modelData_cb(adt=adt)
                 return True
             #filename=self.GetString(self.trajectoryfile)
             #if len(filename) == 0 :

@@ -3296,8 +3296,8 @@ class epmvAdaptor(object):
         name1,name2 = self.bondNameRule(atm1,atm2,"T")        
         if atm1.name[0] not in list(AtomElements.keys()) : atN="A"
         else : atN = atm1.name[0]
-        mat = self.helper.getMaterial(atN)
-        if mat == None :
+        mat = self.helper.getMaterial(atN)        
+        if  type(mat) == type(None) :
             mat = self.helper.addMaterial(atm1.name[0],[0.,0.,0.])
         obj1 = self.helper.getObject(name1)
         obj2 = self.helper.getObject(name2)
@@ -3715,8 +3715,12 @@ class epmvAdaptor(object):
     	    self.helper.updatePoly(lines,vertices=chains.residues.atoms.coords,faces=indices)
 
     def _updateMesh(self,geom):
-        mesh=self.helper.getMesh(self.helper.getName(geom.mesh))
-        #this probably return the  original scene not the render one in c4d
+        print ("_updateMesh from",geom,geom.mesh)
+        print ("name of the mesh ",self.helper.getName(geom.mesh))
+        if self.host == '3dsmax' :
+            mesh=self.helper.getMesh(geom.mesh)
+        else :
+            mesh=self.helper.getMesh(self.helper.getName(geom.mesh))
         print ("update ",geom,mesh,geom.mesh,geom.obj)        
         if not hasattr(geom,"getVertices"):
             #this os probably a extEl then just get vertices and faces
