@@ -3548,7 +3548,7 @@ The Scripps Research Insititute"""
         liste_plugin={"upy":{"version_current":upy.__version__,"path":upy.__path__[0]+os.sep},
                       "ePMV":{"version_current":self.__version__,"path":ePMV.__path__[0]+os.sep}}
         from upy.upy_updater import Updater
-        up = Updater(host=self.host,helper=self.helper,gui=self,liste_plugin=liste_plugin,typeUpdate="std")
+        up = Updater(host="all",helper=self.helper,gui=self,liste_plugin=liste_plugin,typeUpdate="std")
         up.readUpdateNote()
         self.__about__="v"+self.__version__ +" of ePMV is installed.\nv"+up.result_json["ePMV"]["version_std"]+" is available under Help/Check for Updates.\n\n"
         self.__about__+="v"+upy.__version__+" of uPy is installed.\nv"+up.result_json["upy"]["version_std"]+" is available under Help/Check for Updates.\n"
@@ -3609,7 +3609,7 @@ http://epmv.scripps.edu"""
         liste_plugin={"upy":{"version_current":upy.__version__,"path":upy.__path__[0]},
                       "ePMV":{"version_current":self.__version__,"path":ePMV.__path__[0]}}
         from upy.upy_updater import Updater
-        up = Updater(host=self.host,helper=self.helper,gui=self,liste_plugin=liste_plugin,typeUpdate="dev")
+        up = Updater(host="all",helper=self.helper,gui=self,liste_plugin=liste_plugin,typeUpdate="dev")
         up.checkUpdate()
 
     def stdCheckUpdate(self,*args):
@@ -3617,7 +3617,7 @@ http://epmv.scripps.edu"""
         liste_plugin={"upy":{"version_current":upy.__version__,"path":upy.__path__[0]},
                       "ePMV":{"version_current":self.__version__,"path":ePMV.__path__[0]}}
         from upy.upy_updater import Updater
-        up = Updater(host=self.host,helper=self.helper,gui=self,liste_plugin=liste_plugin)
+        up = Updater(host="all",helper=self.helper,gui=self,liste_plugin=liste_plugin)
         up.checkUpdate()
 
     def joinSS(self,*args):
