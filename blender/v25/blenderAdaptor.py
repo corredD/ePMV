@@ -12,17 +12,20 @@ import ePMV
 from ePMV.epmvAdaptor import epmvAdaptor
 #from ePMV.blender import blenderHelper
 
+import upy
+
 import bpy
 import mathutils
 
-blender_version = bpy.app.version
-if blender_version < (2,60,0):
-    from upy.blender.v257 import blenderHelper
-elif blender_version >= (2,60,0) and blender_version < (2,63,0): #2.62
-    from upy.blender.v262 import blenderHelper
-elif blender_version >= (2,63,0) : #2.62
-    from upy.blender.v263 import blenderHelper
-    
+#blender_version = bpy.app.version
+#if blender_version < (2,60,0):
+#    from upy.blender.v257 import blenderHelper
+#elif blender_version >= (2,60,0) and blender_version < (2,63,0): #2.62
+#    from upy.blender.v262 import blenderHelper
+#elif blender_version >= (2,63,0) : #2.62
+#    from upy.blender.v263 import blenderHelper
+#    
+
 from MolKit.protein import ResidueSetSelector,Residue,Chain, Protein
 from Pmv.pmvPalettes import AtomElements
 from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
@@ -34,7 +37,7 @@ from Pmv.pmvPalettes import SecondaryStructureType
 class blenderAdaptor(epmvAdaptor):
     def __init__(self,mv=None,debug=0,gui=False):
         self.soft = 'blender25'
-        self.helper = blenderHelper.blenderHelper()
+        self.helper = upy.getHClass("blender25")()
         epmvAdaptor.__init__(self,mv,host='blender25',debug=debug)
 
 #        #scene and object helper function
