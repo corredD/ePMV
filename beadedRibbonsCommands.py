@@ -35,52 +35,79 @@ from Pmv.displayCommands import DisplayCommand
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
 from mglutil.math import crossProduct,norm
 
+def getAtsRes(atoms,listesel):
+    missingAts = False
+    listeCoord = []
+    for astr in listesel :
+        AT = atoms.objectsFromString(astr)  
+        if len(AT) :
+            ATcoord = Numeric.array(AT[0].coords)
+            listeCoord.append(ATcoord)
+        else : missingAts = True
+    return listeCoord,missingAts
+
 def ExtrudeNA(chain,name='ssSheet2D'):
     """Computes ribbons for DNA/RNA"""
     coord = []
     coord.append(chain.DNARes[0].atoms[0].coords)
     NA_type = chain.DNARes[0].type.strip()                        
     atoms = chain.DNARes[0].atoms
+    missingAts = False
+    normal = Numeric.array([0.,1.,0.])
     if NA_type in ['A', 'G']:
-        N9 =  Numeric.array(atoms.objectsFromString('N9')[0].coords)
-        C8 =  Numeric.array(atoms.objectsFromString('C8')[0].coords)
-        C4 =  Numeric.array(atoms.objectsFromString('C4')[0].coords)
-        N9_C8 = C8-N9
-        N9_C4 = C4-N9
-        normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
+        listesel = ['N9.*','C8.*','C4.*']
+        listeCoord,missingAts = getAtsRes(atoms,listesel)
+        if not missingAts :
+            N9 =  listeCoord[0]#Numeric.array(atoms.objectsFromString('N9.*')[0].coords)
+            C8 =  listeCoord[1]#Numeric.array(atoms.objectsFromString('C8.*')[0].coords)
+            C4 =  listeCoord[2]#Numeric.array(atoms.objectsFromString('C4.*')[0].coords)
+            N9_C8 = C8-N9
+            N9_C4 = C4-N9
+            normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
     else:
-        N1 =  Numeric.array(atoms.objectsFromString('N1')[0].coords)
-        C2 =  Numeric.array(atoms.objectsFromString('C2')[0].coords)
-        C6 =  Numeric.array(atoms.objectsFromString('C6')[0].coords)
-        N1_C2 = C2-N1
-        N1_C6 = C6-N1
-        normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
+        listesel = ['N1.*','C2.*','C6.*']
+        listeCoord = []
+        listeCoord,missingAts = getAtsRes(atoms,listesel)
+        if not missingAts :
+            N1 =  listeCoord[0]#Numeric.array(atoms.objectsFromString('N1.*')[0].coords)
+            C2 =  listeCoord[1]#Numeric.array(atoms.objectsFromString('C2.*')[0].coords)
+            C6 =  listeCoord[2]#Numeric.array(atoms.objectsFromString('C6.*')[0].coords)
+            N1_C2 = C2-N1
+            N1_C6 = C6-N1
+            normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
     base_normal = Numeric.array(chain.DNARes[0].atoms[0].coords)
     coord.append((base_normal + normal).tolist())
 
     for res in chain.DNARes[1:]:
-        if res.atoms.objectsFromString('P'):
-            P_coord = res.atoms.objectsFromString('P')[0].coords
+        normal = Numeric.array([0.,1.,0.])
+        if res.atoms.objectsFromString('P.*'):
+            P_coord = res.atoms.objectsFromString('P.*')[0].coords
             coord.append(P_coord)
         else: # this in case last residue does not have P
-            P_coord = res.atoms.objectsFromString('C5\*')[0].coords
+            P_coord = res.atoms[0].coords
         NA_type = res.type.strip()      
         atoms = res.atoms
         if NA_type in ['A', 'G']:
-            N9 =  Numeric.array(atoms.objectsFromString('N9')[0].coords)
-            C8 =  Numeric.array(atoms.objectsFromString('C8')[0].coords)
-            C4 =  Numeric.array(atoms.objectsFromString('C4')[0].coords)
-            N9_C8 = C8-N9
-            N9_C4 = C4-N9
-            normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
+            listesel = ['N9.*','C8.*','C4.*']
+            listeCoord,missingAts = getAtsRes(atoms,listesel)
+            if not missingAts :
+                N9 =  listeCoord[0]#Numeric.array(atoms.objectsFromString('N9.*')[0].coords)
+                C8 =  listeCoord[1]#Numeric.array(atoms.objectsFromString('C8.*')[0].coords)
+                C4 =  listeCoord[2]#Numeric.array(atoms.objectsFromString('C4.*')[0].coords)
+                N9_C8 = C8-N9
+                N9_C4 = C4-N9
+                normal = Numeric.array(crossProduct(N9_C8, N9_C4, normal=True))
         else:
-            N1 =  Numeric.array(atoms.objectsFromString('N1')[0].coords)
-            C2 =  Numeric.array(atoms.objectsFromString('C2')[0].coords)
-            C6 =  Numeric.array(atoms.objectsFromString('C6')[0].coords)
-            N1_C2 = C2-N1
-            N1_C6 = C6-N1
-            normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
-
+            listesel = ['N1.*','C2.*','C6.*']
+            listeCoord = []
+            listeCoord,missingAts = getAtsRes(atoms,listesel)
+            if not missingAts :
+                N1 =  listeCoord[0]#Numeric.array(atoms.objectsFromString('N1.*')[0].coords)
+                C2 =  listeCoord[1]#Numeric.array(atoms.objectsFromString('C2.*')[0].coords)
+                C6 =  listeCoord[2]#Numeric.array(atoms.objectsFromString('C6.*')[0].coords)
+                N1_C2 = C2-N1
+                N1_C6 = C6-N1
+                normal = Numeric.array(crossProduct(N1_C2, N1_C6, normal=True))
         base_normal = Numeric.array(P_coord)
         coord.append((base_normal + normal).tolist())
         
@@ -88,7 +115,7 @@ def ExtrudeNA(chain,name='ssSheet2D'):
     chain.sheet2D[name].compute(coord, len(chain.DNARes)*(False,), 
                              width = 2.0,off_c = 0.9,offset=0.0, nbchords=4)
     chain.sheet2D[name].resInSheet = chain.DNARes
-
+    
 class BeadedRibbonsCommand(MVCommand):
     """
     Command to compute Beaded Ribbons for selected molecule(s)
