@@ -55,10 +55,10 @@ if self.hasGui:
    self.browseCommands("interactiveCommands", package="Pmv", topCommand=0)
    
 #self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
-if sys.version_info <= (2, 7): 
-    self.browseCommands('secondaryStructureCommands', package='ePMV.pmv_dev', topCommand=0)
-else : 
-    self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
+#if sys.version_info <= (2, 7): 
+self.browseCommands('secondaryStructureCommands', package='ePMV.pmv_dev', topCommand=0)
+#else : 
+#    self.browseCommands("secondaryStructureCommands", package="Pmv", topCommand=0)
 
 self.browseCommands('beadedRibbonsCommands', package="ePMV.pmv_dev", topCommand=0)
 
