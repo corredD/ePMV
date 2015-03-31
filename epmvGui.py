@@ -1127,7 +1127,7 @@ class Parameter_epmvGUI(uiadaptor):
         
         self.setupLayout_frame()
         #print self.host
-        if self.host != "maya" and self.host != "blender25" and self.host != "qt" and self.host!="3dsmax":
+        if self.host != "maya" and self.host != "blender26" and self.host != "qt" and self.host!="3dsmax":
             #print "restore"
             self.restorePreferences()
         return True
@@ -1170,7 +1170,7 @@ class Parameter_epmvGUI(uiadaptor):
     def CreateLayout(self):
         self._createLayout()
         #self.restorePreferences()
-        if self.host != "maya" and self.host != "blender25":
+        if self.host != "maya" and self.host != "blender26":
             #print "restore"
             self.restorePreferences()
         return True
@@ -3253,7 +3253,7 @@ The Scripps Research Insititute"""
                 selection = selection.get(atlevel[level][i])
                 selection.sort()
                 lsel.extend(selection)        
-        print(lsel)
+        print("mySelection is ",lsel)
         return lsel
 
     def dsBones(self,*args):
@@ -3264,7 +3264,7 @@ The Scripps Research Insititute"""
         name=mname+"_Armature"
         armObj = self.epmv.helper.getObject(name)
         i=self.getLong(self.COMB_BOX["bones"])
-#        print((self.boneslevel[i]))
+        print("dsBones",name)
         atlevel="CA"
         if armObj is None :
             #level
