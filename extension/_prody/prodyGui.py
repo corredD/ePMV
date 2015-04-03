@@ -141,7 +141,7 @@ class prodyGui(uiadaptor):
             kw={}
             for k in self.keywords:
                 kw[k] = self.getVal(self.INPUT[k])
-                print k,kw[k]
+                print (k,kw[k])
             mol.prodymodel.Set(**kw)
 
     def CreateLayout(self):
