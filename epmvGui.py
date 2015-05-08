@@ -3204,6 +3204,64 @@ The Scripps Research Insititute"""
         o = self.epmv.helper.getObject(gname)
         self.epmv.helper.toggleDisplay(o,display)
 
+
+    def getAtomsSelectionPrody(self,level,sel,selection,mol,chain = None):
+        #use mol.select
+        ##boneslevel=["Trace","Backbone","Full Atoms","Domain","Chain","Mol","Selection"]
+        atlevel = {"Trace":["CA","O5'"],
+                   "Backbone":["N,CA,C,N","P,O5',C5',C4',C3',O3'"],
+                   "Full Atoms":["all","all"],
+                   "Domain":["CA","P"], #how to define the domain
+                   "Chain":["ccenter","ccenter"],
+                   "Mol":["mcenter","mcenter"],
+                   }
+        selString=str(self.getString(self.SELEDIT_TEXT))
+        lchain = mol.chains
+        if chain is not None :
+            lchain = [chain]
+        lsel=[]
+        i=0
+        if level == 'Mol':
+           lsel = [mol.getCenter(),]
+        elif level == 'Chain' :
+            lsel=[]
+            for ch in chain:
+                #get the center of the chain
+                lsel.append(util.getCenter(ch.residues.atoms.coords))
+        elif level == 'Domain' :
+            #doesthe mol have domain information?
+            lsel=[]            
+            if not hasattr(mol,"hasDomains"):
+                domains= self.epmv.getDomains(mol)
+                if domains < 0 :
+                    return lsel
+            if mol.hasDomains :
+                #need to getcener of mass of each domains ?
+                lres = self.epmv.getDomainsResiduesCoords(mol)
+                lsel = [util.getCenter(l) for l in lres]
+        elif level =='Selection':
+            lsel = selection
+        else :
+            print ("level is ",level)
+            if selString=="" :
+#            if sel == mol.name :
+                for ch in lchain:
+                    if ch.ribbonType()=='NA':
+                        i=1
+                    lsel.extend(mol.prodymodel.model.select("chain "+ch.name+" name "+atlevel[level][i]).getCoords())
+#                    selection = ch.residues.atoms.get(atlevel[level][i])
+#                    selection.sort()
+#                    lsel.extend(selection)
+            else :
+                ch=selection.findParentsOfType(Chain)[0]
+                if ch.ribbonType()=='NA':
+                    i=1
+                selection = selection.get(atlevel[level][i])
+                selection.sort()
+                lsel.extend(selection)        
+        print("mySelection is ",lsel)
+        return lsel          
+        
     def getAtomsSelection(self,level,sel,selection,mol,chain = None):
         atlevel = {"Trace":["CA","O5'"],
                    "Backbone":["N,CA,C,N","P,O5',C5',C4',C3',O3'"],
@@ -3264,11 +3322,18 @@ The Scripps Research Insititute"""
         name=mname+"_Armature"
         armObj = self.epmv.helper.getObject(name)
         i=self.getLong(self.COMB_BOX["bones"])
-        print("dsBones",name)
+        print("dsBones",name,self.boneslevel[i],mol)
+#        return
         atlevel="CA"
         if armObj is None :
-            #level
-            lsel = self.getAtomsSelection(self.boneslevel[i],sel,selection,mol)
+            #level getAtomsSelection gave issue
+            if self.host == "blender25" and self.epmv._prody :
+                if not hasattr(mol,"prodymodel") or mol.prodymodel is None:
+                    from ePMV.extension._prody._prody import _prodymodel
+                    mol.prodymodel = _prodymodel(mol.parser.filename,center=self.epmv.center_mol)
+                lsel = self.getAtomsSelectionPrody(self.boneslevel[i],sel,selection,mol)
+            else :
+                lsel = self.getAtomsSelection(self.boneslevel[i],sel,selection,mol)
             if isinstance(lsel,AtomSet) :
                 object,bones=self.epmv._armature(name,lsel,
                                        scn=self.epmv.helper.getCurrentScene(),
@@ -3798,7 +3863,7 @@ http://epmv.scripps.edu"""
         import modeller
         mname,mol,sel,selection = self.getDsInfo()     
         mdl = mol.mdl
-        mdl = mol.mdl
+#        mdl = mol.mdl
 #        print(mname)
         # Select all atoms:
         atmsel = modeller.selection(mdl)

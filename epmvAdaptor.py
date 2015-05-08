@@ -492,6 +492,7 @@ class epmvAdaptor(object):
         self._AR = False
         self._pymol = False
         self._prody = False
+        self.doCamera = False
         self.synchronize()
  
     def Set(self,reset=False,**kw):

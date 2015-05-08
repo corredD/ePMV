@@ -6,6 +6,7 @@ Created on Thu Nov 17 14:02:42 2011
 """
 import numpy
 import prody
+from prody import * 
 #cant do the computatio interactivly
 #can probably do the computation online and just display the result
 
@@ -20,6 +21,7 @@ class _prodymodel(object):
         "gamma" : 1.0,#spring constant
         "gammaStructure" : False,
         "sample" : "sample",#or traverse
+        "center" : False,
     }
     
     def __init__(self,pdbfile,*args,**kw):
@@ -27,6 +29,7 @@ class _prodymodel(object):
         self.pmvmodel = None
         self.oricoords = None
         self.first = True
+#        self.center = False
         for k in self.keywords :
             setattr(self,k,self.keywords[k])
         self.Set(**kw)
@@ -36,7 +39,11 @@ class _prodymodel(object):
             
     def load(self,filename):
         self.filname = filename
-        self.model = prody.parsePDB(self.filname, model=1)         
+        self.model = prody.parsePDB(self.filname, model=1) 
+        print ("self.center",self.center)
+        if self.center :
+#            c = calcCenter(self.model) 
+            moveAtoms(self.model, to=numpy.zeros(3))
         self.ca_model = self.model.select('protein and name CA')#what about DNA
         
     def setNM(self,):

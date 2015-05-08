@@ -7,6 +7,7 @@
 #
 #############################################################################
 import os
+import sys
 
 import ePMV
 from ePMV.epmvAdaptor import epmvAdaptor
@@ -16,6 +17,7 @@ import upy
 
 import bpy
 import mathutils
+
 
 #blender_version = bpy.app.version
 #if blender_version < (2,60,0):
@@ -34,10 +36,16 @@ from Pmv.pmvPalettes import Shapely
 from Pmv.pmvPalettes import SecondaryStructureType
 
 
+#should we use prody to avoid all the issue with MolKit in python3.0
+
 class blenderAdaptor(epmvAdaptor):
     def __init__(self,mv=None,debug=0,gui=False):
         self.soft = 'blender25'
         self.helper = upy.getHClass("blender25")()
+        #overwrite 
+#        self.setupMV = self.setupMV2
+#        self.start = self.start2
+#        self.addADTCommands = self.addADTCommands2
         epmvAdaptor.__init__(self,mv,host='blender25',debug=debug)
 
 #        #scene and object helper function
@@ -84,6 +92,112 @@ class blenderAdaptor(epmvAdaptor):
         if gui :
             self.createGUI()
 
+    def start2(self,debug=0):
+        """
+        Initialise a PMV guiless session. Load specific command to PMV such as
+        trajectory, or grid commands which are not automatically load in the 
+        guiless session.
+        
+        @type  debug: int
+        @param debug: debug mode, print verbose
+        
+        @rtype:   MolecularViewer
+        @return:  a PMV object session.
+        """  
+        customizer = ePMV.__path__[0]+os.sep+"epmvrc.py"
+#        print "customizer ",customizer
+        #replace _pmvrc ?
+        from PmvApp.Pmv import MolApp
+        pmv = MolApp()
+        if debug:
+            pmv._stopOnError = True
+        
+        pmv.trapExceptions = False
+#        mv = MoleculeViewer(logMode = 'overwrite', customizer=customizer, 
+#                            master=None,title='pmv', withShell= 0,
+#                            verbose=False, gui = False)
+        return pmv
+
+    def setupMV2(self):
+        print ("setupMV",sys.version_info,sys.version_info < (3, 0))
+        self.mv.lazyLoad('bondsCmds', package='PmvApp')
+        self.mv.lazyLoad('fileCmds', package='PmvApp')
+        self.mv.lazyLoad('displayCmds', package='PmvApp')
+        self.mv.lazyLoad('editCmds', package='PmvApp')
+        self.mv.displayLines.loadCommand()
+        self.mv.lazyLoad("colorCmds", package="PmvApp")
+        #pmv.setOnAddObjectCmd('Molecule', [pmv.buildBondsByDistance, pmv.displayLines])
+        
+        self.mv.lazyLoad("selectionCmds", package="PmvApp")
+        #pmv.lazyLoad('msmsCmds', package='PmvApp')
+        self.mv.lazyLoad('deleteCmds', package='PmvApp')
+        #pmv.lazyLoad('secondaryStructureCmds', package='PmvApp')
+#        self.mv.lazyLoad('displayHyperBallsCmds', package='PmvApp')
+#        self.mv.lazyLoad('labelCmds', package='PmvApp')
+#        self.mv.lazyLoad('displayHyperBallsCmds', package='PmvApp')
+
+        self.mv.addCommand(BindGeomToMolecularFragment(), 'bindGeomToMolecularFragment', None)
+        self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
+        self.mv.addCommand(PlayTrajectoryCommand(),'playTrajectory',None)
+        self.mv.addCommand(addGridCommand(),'addGrid',None)
+        self.mv.addCommand(readAnyGrid(),'readAny',None)
+        self.mv.addCommand(IsocontourCommand(),'isoC',None)
+        if sys.version_info < (3, 0):
+            self.mv.browseCommands('colorCommands',package='ePMV.pmv_dev', topCommand=0)
+        #self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
+        #self.mv.browseCommands('trajectoryCommands',commands=['openTrajectory'],log=0,package='Pmv')
+        #define the listener
+        if self.host is not None :
+            self.mv.registerListener(DeleteGeomsEvent, self.updateGeom)
+            self.mv.registerListener(AddGeomsEvent, self.updateGeom)
+            self.mv.registerListener(EditGeomsEvent, self.updateGeom)
+            self.mv.registerListener(AfterDeleteAtomsEvent, self.updateModel)
+            self.mv.registerListener(BeforeDeleteMoleculesEvent,self.updateModel)
+            self.mv.addCommand(loadMoleculeInHost(self),'_loadMol',None)            
+            #self.mv.embedInto(self.host,debug=0)
+            self.mv.embeded = True
+        #compatibility with PMV
+        self.mv.Grid3DReadAny = self.mv.readAny
+        #mv.browseCommands('superimposeCommandsNew', package='Pmv', topCommand=0)
+        self.mv.userpref['Read molecules as']['value']='conformations'
+        self.mv.setUserPreference(('Read molecules as', 'conformations',), log=0)
+        self.mv.setUserPreference(('Number of Undo', '0',), redraw=0, log=1)
+        self.mv.setUserPreference(('Save Perspective on Exit', 'no',), log=0)
+        self.mv.setUserPreference(('Transformation Logging', 'no',), log=0) 
+        #should add some user preferece and be able to save it       
+        #recentFiles Folder
+#        rcFile = self.mv.rcFolder
+#        if rcFile:
+#            rcFile += os.sep + 'Pmv' + os.sep + "recent.pkl"
+#            self.mv.recentFiles = RecentFiles(self.mv, None, filePath=rcFile,index=0)
+#        else :
+#            print("no rcFolder??")
+#        
+        #this  create mv.hostapp which handle server/client and log event system
+        #NOTE : need to test it in the latest version
+#        if not self.useLog : 
+#            self.mv.hostApp.driver.useEvent = True
+        self.mv.iTraj={}
+        
+        self.funcColor = [self.mv.colorByAtomType,
+                          self.mv.colorAtomsUsingDG,
+                          self.mv.colorByResidueType,
+                          self.mv.colorResiduesUsingShapely,
+                          self.mv.colorBySecondaryStructure,
+                          self.mv.colorByChains,
+                          self.mv.colorByDomains,
+                          self.mv.color,
+                          self.mv.colorByProperty]
+        self.fTypeToFc = {"ByAtom":0,"AtomsU":1,"ByResi":2,"Residu":3,
+                          "BySeco":4,"ByChai":5,"ByDoma":6,"":7,
+                          "ByPropN":8,"ByPropT":9,"ByPropS":10}
+        self.mv.host = self.host
+#        self.mv.selectionLevel = Atom
+#        mv.hostApp.driver.bicyl = self.bicyl
+
+    def addADTCommands2(self,):
+        pass
+        
     def synchronize(self):
         if self.synchro_timeline :
             self.synchronize_timeline()
