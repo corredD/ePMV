@@ -29,23 +29,26 @@ import sys
 import os
 
 #from ePMV.epmvAdaptor import epmvAdaptor
-from upy.autodesk3dsmax.v2015 import maxHelper
+import upy
+maxHelper = upy.getHelperClass()
+#from upy.autodesk3dsmax.v2015 import maxHelper
+
 print ("helper is ",maxHelper)
 from ePMV.lightGridCommands import addGridCommand
 from ePMV.lightGridCommands import readAnyGrid
 from ePMV.lightGridCommands import IsocontourCommand
-print ("probalem loading mvcommand ?")
+
 from Pmv.mvCommand import MVCommand
-print ("probalem loading molecularviewer ?")
+
 from Pmv.moleculeViewer import MoleculeViewer
 from Pmv.moleculeViewer import DeleteGeomsEvent, AddGeomsEvent, EditGeomsEvent
 from Pmv.moleculeViewer import DeleteAtomsEvent, EditAtomsEvent
 from Pmv.deleteCommands import BeforeDeleteMoleculesEvent,AfterDeleteAtomsEvent
 from Pmv.displayCommands import BindGeomToMolecularFragment
 from Pmv.trajectoryCommands import PlayTrajectoryCommand
-print ("probalem loading mvcommand 2?")
+
 from mglutil.util.recentFiles import RecentFiles
-print ("probalem loading mvcommand 3?")
+
 from MolKit.protein import Protein
 from Pmv.pmvPalettes import AtomElements
 #from Pmv.pmvPalettes import DavidGoodsell, DavidGoodsellSortedKeys
@@ -70,7 +73,7 @@ class maxAdaptor(epmvAdaptor.epmvAdaptor):
     def __init__(self,gui=False,mv=None,debug=0):
         print ("init Max Adaptor")
         self.host = "3dsmax"
-        self.helper = maxHelper.maxHelper()
+        self.helper = maxHelper()
         epmvAdaptor.epmvAdaptor.__init__(self,mv,host='3dsmax',debug=debug)
         self.MAX_LENGTH_NAME = 30
         self.useLog = False
