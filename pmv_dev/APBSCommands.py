@@ -1158,7 +1158,7 @@ append(Pmv.APBSCommands.Ion("+ion.toString()+"))")
                #                                         "\""+full_filename+"\""
                 sys.argv = [sys.executable , self.params.pdb2pqr_Path]
                 if self.vf.embeded :#problem with windows and blender2.6-python3
-                    if sys.version_info > (2, 7) and sys.platform == "win32":
+                    if sys.version_info > (2, 8) and sys.platform == "win32":
                         import Pmv
                         path =Pmv.__path__[0]
                         os.chdir(path)
