@@ -1167,7 +1167,7 @@ append(Pmv.APBSCommands.Ion("+ion.toString()+"))")
                         path =Pmv.__path__[0]
                         os.chdir(path)
                         #the path change depending blender version
-                        os.chdir("../../"+v+"/python/")
+                        os.chdir("../../"+v+"/python/bin/")
                         path = os.path.abspath(os.curdir)
                         sys.argv = [path+os.sep+"python.exe", self.params.pdb2pqr_Path]
                     else :
