@@ -1171,8 +1171,9 @@ append(Pmv.APBSCommands.Ion("+ion.toString()+"))")
                         path = os.path.abspath(os.curdir)
                         sys.argv = [path+os.sep+"python.exe", self.params.pdb2pqr_Path]
                     else :
-                        sys.argv = [sys.executable, self.params.pdb2pqr_Path]
-
+                        import upy
+                        path_to_exe = upy.getExecutable()
+                        sys.argv = [path_to_exe, self.params.pdb2pqr_Path]
                 if self.vf.hasGui:
                     if self.vf.APBSPreferences.nodebump.get():
                         sys.argv.append('--nodebump')
