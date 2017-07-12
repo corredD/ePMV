@@ -781,7 +781,7 @@ class BeadedRibbonsRegCommand(MVCommand):
     
                                 polf2 = [ [f[3], f[2], f[1], f[0]] for f in polf ]
                                 
-                                self.vf.helper.updateMesh(pol,vertices=polv1,
+                                self.vf.helper.updateMesh(pol,vertices=polv1.tolist(),
                                                           faces = polf)
                                 #pol.Set(vertices=polv1, faces=polf, culling='back',
                                 #        inheritMaterial=0, materials=[helixColor1,],
@@ -795,7 +795,7 @@ class BeadedRibbonsRegCommand(MVCommand):
                                     self.vf.helper.addObjectToScene(None,pol2[0],parent=chainMaster)
                                 else :
                                     print ("update5")
-                                    self.vf.helper.updateMesh(pol2,vertices=polv2,
+                                    self.vf.helper.updateMesh(pol2,vertices=polv2.tolist(),
                                                               faces = polf2)
                                     matname = "mat_"+self.vf.helper.getName(pol2)
                                     self.vf.helper.colorMaterial(matname, helixColor2)
@@ -878,7 +878,7 @@ class BeadedRibbonsRegCommand(MVCommand):
                                 pol = pol[0]
                             else :
                                 print ("update7")
-                                self.vf.helper.updateMesh(pol,vertices=polv,
+                                self.vf.helper.updateMesh(pol,vertices=polv.tolist(),
                                                           faces = polf)
                                 matname = "mat_"+self.vf.helper.getName(pol)
                                 self.vf.helper.colorMaterial(matname, sheetColor1)
@@ -895,7 +895,7 @@ class BeadedRibbonsRegCommand(MVCommand):
     
                                 polf2 = [ [f[3], f[2], f[1], f[0]] for f in polf ]
 
-                                self.vf.helper.updateMesh(pol,vertices=polv1,
+                                self.vf.helper.updateMesh(pol,vertices=polv1.tolist(),
                                                           faces = polf)
                                 #pol.Set(vertices=polv1, faces=polf, culling='back',
                                 #        inheritMaterial=0, materials=[sheetColor1,],
@@ -909,7 +909,7 @@ class BeadedRibbonsRegCommand(MVCommand):
                                     self.vf.helper.addObjectToScene(None,pol2[0],parent=chainMaster)
                                 else :
                                     print ("update8")
-                                    self.vf.helper.updateMesh(pol2,vertices=polv2,
+                                    self.vf.helper.updateMesh(pol2,vertices=polv2.tolist(),
                                                               faces = polf2)
                                     matname = "mat_"+self.vf.helper.getName(pol2)
                                     self.vf.helper.colorMaterial(matname, sheetColor2)
@@ -1130,7 +1130,7 @@ class BeadedRibbonsRegCommand(MVCommand):
 
         toPts = toPts#-self.gapEnd
         fromPts = fromPts# + self.gapBeg
-        return fromPts,toPts
+        return int(fromPts),int(toPts)
 
 
     def rebuild(self, event=None):
@@ -2248,8 +2248,8 @@ class BeadedRibbonsUniqCommand(MVCommand):
                                         numpy.array(totalv),[],numpy.array(totalf))[0]
                     self.vf.helper.addObjectToScene(None,chain_bead,parent=chainMaster)
                 else :
-                    self.vf.helper.updateMesh(chain_bead,vertices=numpy.array(totalv),
-                                                      faces = numpy.array(totalf))
+                    self.vf.helper.updateMesh(chain_bead,vertices=numpy.array(totalv).tolist(),
+                                                      faces = numpy.array(totalf).tolist())
                 #self.vf.helper.changeColor(chain_bead,numpy.array(totalcolor))#,proxyObject=True,perVertex=True)
         setOn = AtomSet([])
         setOff = AtomSet([])        
