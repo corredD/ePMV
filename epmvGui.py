@@ -1647,7 +1647,7 @@ The Scripps Research Insititute"""
                                                width=60, height=10, action=self.updateTraj,
                                                variable=self.datvar,
                                                type="pullMenu", ),  # self.updateTraj},
-                         "pdbtype": self._addElemt(name="Fecth",
+                         "pdbtype": self._addElemt(name="Fetch",
                                                    value=self.pdbtype,
                                                    width=50, height=10, action=None,
                                                    variable=self._pdbtype,
