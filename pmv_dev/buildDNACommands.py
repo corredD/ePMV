@@ -1,7 +1,7 @@
 
 """
     Copyright (C) <2010>  Autin L.
-    
+
     This file ePMV_git/pmv_dev/buildDNACommands.py is part of ePMV.
 
     ePMV is free software: you can redistribute it and/or modify
@@ -37,7 +37,7 @@ except :
     #fetch request module
     import Pmv
     import tarfile
-    import shutil        
+    import shutil
     patchpath = Pmv.__path__[0]
     os.chdir(patchpath)
     os.chdir("../")
@@ -49,7 +49,7 @@ except :
     TF=tarfile.TarFile(tmpFileName)
     dirname1=patchpath+os.sep+"requests"
     if os.path.exists(dirname1):
-        shutil.rmtree(dirname1,True)           
+        shutil.rmtree(dirname1,True)
     TF.extractall(patchpath)
 #    os.remove(tmpFileName)
     try :
@@ -57,7 +57,7 @@ except :
     except :
         request = None
         print ("probleme downloading requests module")
-    
+
 from Pmv.mvCommand import MVCommand
 class BuildDNACommand(MVCommand):
     """The BuildDNACommand class is the base class to build a DNA structure from a  sequence.
@@ -70,9 +70,9 @@ class BuildDNACommand(MVCommand):
     representing the specified nodes with the given list of colors.\n
     \nSynopsis:\n
       None <--- color(nodes, colors[(1.,1.,1.),], geomsToColor='all', **kw)\n
-    \nRequired Arguments:\n 
+    \nRequired Arguments:\n
       nodes --- any set of MolKit nodes describing molecular components\n
-    \nOptional Arguments:\n  
+    \nOptional Arguments:\n
       colors --- list of rgb tuple\n
       geomsToColor --- list of the name of geometries to color default is 'all'\n
       Keywords --- color\n
@@ -87,13 +87,13 @@ class BuildDNACommand(MVCommand):
     def onAddCmdToViewer(self):
         # this is done for sub classes to be able to change the undoCmdsString
         self.undoCmdsString = self.name
-        
+
     def onRemoveObjectFromViewer(self, object):
         self.cleanup()
-    
+
     def onAddObjectToViewer(self, object):
         self.cleanup()
-        
+
     def getPath(self,htmlstring):
         lines = htmlstring.split("\n")
         path=""
@@ -140,7 +140,7 @@ class BuildDNACommand(MVCommand):
         done = False
         cut= 0
         dnafile = None
-        print ("http://web.x3dna.org/"+path[1:-1]+"/main_view01.pdb")
+        print ("http://web.x3dna.org/"+path+"/main_view01.pdb")
         if name is None :
             name = "s0.pdb"
         if pathTo is None :
@@ -150,7 +150,7 @@ class BuildDNACommand(MVCommand):
             if cut > 100 :
                 break
             try :
-                urllib.urlretrieve("http://web.x3dna.org/"+path[1:-1]+"/main_view01.pdb", tmpFileName)
+                urllib.urlretrieve("http://web.x3dna.org/"+path+"/main_view01.pdb", tmpFileName)
                 done = True
             except :
                 cut+=1
@@ -166,27 +166,22 @@ class BuildDNACommand(MVCommand):
         fiberform=self.options["fiberform"]
         if "fiberform" in kw :
             fiberform=kw["fiberform"]
+        print ("using "+fiberform)
         self.postdicionary= {'fiberform':fiberform,'submit':"use this model"}
         r = requests.post("http://web.x3dna.org/fibermodel/fiberch", data=self.postdicionary)
         path_id = r.text.find('name="path"')
         path = ""
         if path_id != -1 :
-            path = r.text[path_id:].split()[1].split("=")[1]
+            path = r.text[path_id:].split()[1].split("=")[1][1:-1]
 
-        self.postdicionary = {'num':'1',
+        self.postdicionary = {'opento':"fibermodel/regseq",
+                              'num':'1',
                               'seq': seq,
                               'dnaform':fiberform,
                               'fiberform':fiberform,
                               "path":path,
                               "submit":"Build"}
         r = requests.post("http://web.x3dna.org/fibermodel/progbar", data=self.postdicionary)
-
-        self.postdicionary = {'num':'1',
-                              'seq': seq,
-                              'dnaform':fiberform,
-                              'fiberform':fiberform,
-                              "path":path}
-        r = requests.post("http://web.x3dna.org/fibermodel/paulingseq", data=self.postdicionary)
 
         self.postdicionary = {'num':'1',
                               'seq': seq,
@@ -301,4 +296,3 @@ def initModule(viewer):
 #    output = open('s0.pdb','w')
 #    output.write(dnafile.read())
 #    output.close()
-

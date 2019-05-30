@@ -1,7 +1,7 @@
 
 """
     Copyright (C) <2010>  Autin L.
-    
+
     This file ePMV_git/pmv_dev/buildDNAGui.py is part of ePMV.
 
     ePMV is free software: you can redistribute it and/or modify
@@ -42,12 +42,12 @@ class BuildDNAGui(uiadaptor):
         else:
             id = self.bid
         self.id = id
-        #define the widget here too       
-        
+        #define the widget here too
+
         self.BTN={}
         self._name = self.addVariable("str","s0.pdb")
         self.NAME = self._addElemt(name="name",action=None,width=100,
-                          value="",type="inputStr",variable=self._name) 
+                          value="",type="inputStr",variable=self._name)
 
         self._sequence = self.addVariable("str","")
         self.SEQ = self._addElemt(name="seq",action=None,width=100,
@@ -62,6 +62,10 @@ class BuildDNAGui(uiadaptor):
                                     width=100,height=10,action=None,
                                     variable=self.addVariable("int",0),
                                     type="pullMenu",)
+        self._fiberForm = self.addVariable("str","")
+        self.fiberForm = self._addElemt(name="name",action=None,width=100,
+                          value="",type="inputStr",variable=self._fiberForm)
+
         self.BTN["ok"] = self._addElemt(name="Build",width=40,height=10,
                          action=self.build,type="button")
         self.BTN["cancel"] = self._addElemt(name="Cancel",width=40,height=10,
@@ -69,6 +73,7 @@ class BuildDNAGui(uiadaptor):
         self.LABEL0 = self._addElemt(label="Enter a name (ie test.pdb) :",width=100)
         self.LABEL1 = self._addElemt(label="Enter a Sequence :",width=100)
         self.LABEL2 = self._addElemt(label="Choose a type :",width=100)
+        self.LABEL3 = self._addElemt(label="Or specify type :",width=100)
         self.setupLayout()
 
     def setupLayout(self):
@@ -77,12 +82,16 @@ class BuildDNAGui(uiadaptor):
         self._layout.append([self.LABEL0,self.NAME])
         self._layout.append([self.LABEL1,self.SEQ])
         self._layout.append([self.LABEL2,self.COMB_BOX])
+        self._layout.append([self.LABEL3,self.fiberForm])
         self._layout.append([self.BTN["ok"],self.BTN["cancel"]])
 
 
     def build(self,*args):
         #get the filename, should we use a file browser?
         mode = self.sObject[self.getLong(self.COMB_BOX)].split(">")[0]
+        fmode = self.getVal(self.fiberForm)
+        if fmode != "":
+            mode = fmode
         name = self.getVal(self.NAME)#or self._name
         seq = self.getVal(self.SEQ)#or self._sequence
         #do the transform
@@ -164,4 +173,4 @@ class BuildDNAGui(uiadaptor):
 #        <option value="M35">RNA poly (I) : poly (I) : poly(I) : poly(I)</option>
 #        <option value="M36">RNA poly (C) or poly (mC) or poly (eC)</option>
 #        <option value="M42">RNA poly (U) : poly d(A) : poly(U)</option>
-# 
+#
