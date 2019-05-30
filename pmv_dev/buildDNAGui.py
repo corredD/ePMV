@@ -51,9 +51,12 @@ class BuildDNAGui(uiadaptor):
 
         self._sequence = self.addVariable("str","")
         self.SEQ = self._addElemt(name="seq",action=None,width=100,
-                          value="",type="inputStr",variable=self._sequence) 
-                                  
-        self.sObject = ["M1>A-DNA  (generic)","M4>B-DNA  (generic)","M7>C-DNA  (generic)","M54>A-DNA  (generic alternate)"]#pointsClouds ?
+                          value="",type="inputStr",variable=self._sequence)
+
+        self.sObject = ["M61>A-DNA  (generic)",
+                        "M64>B-DNA  (generic)",
+                        "M67>C-DNA  (generic)",
+                        "M54>A-DNA  (generic alternate)"]#pointsClouds ?
         self.COMB_BOX = self._addElemt(name="Type",
                                     value=self.sObject,
                                     width=100,height=10,action=None,
@@ -67,7 +70,7 @@ class BuildDNAGui(uiadaptor):
         self.LABEL1 = self._addElemt(label="Enter a Sequence :",width=100)
         self.LABEL2 = self._addElemt(label="Choose a type :",width=100)
         self.setupLayout()
-        
+
     def setupLayout(self):
         #form layout for each SS types ?
         self._layout = []
@@ -76,7 +79,7 @@ class BuildDNAGui(uiadaptor):
         self._layout.append([self.LABEL2,self.COMB_BOX])
         self._layout.append([self.BTN["ok"],self.BTN["cancel"]])
 
-        
+
     def build(self,*args):
         #get the filename, should we use a file browser?
         mode = self.sObject[self.getLong(self.COMB_BOX)].split(">")[0]
@@ -84,7 +87,7 @@ class BuildDNAGui(uiadaptor):
         seq = self.getVal(self.SEQ)#or self._sequence
         #do the transform
         name, pathTo = self.epmv.mv.buildDNA(name,seq=seq,fiberform=mode,load=False)
-        if name is None : return        
+        if name is None : return
         if self.epmv.gui is not None :
             self.epmv.gui.loadPDB(pathTo+name)
         else :
@@ -100,10 +103,10 @@ class BuildDNAGui(uiadaptor):
 #        print args
         self._command(args)
         return True
-        
-        
-        
-#completelistof option for the type of dna fiber        
+
+
+
+#completelistof option for the type of dna fiber
 #       <option value="note">Choose a DNA fiber</option>
 #        <option value="M1" selected="selected">A-DNA  (generic)</option>
 #        <option value="M4">B-DNA  (generic)</option>

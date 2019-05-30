@@ -106,8 +106,8 @@ class BuildDNACommand(MVCommand):
                         break
                 break
         return path
-        
-    def doit(self, fname, seq, **kw):
+
+    def query_legacy_server(self, fname, seq, **kw):
         print( fname)
         print("%s" % seq)
         self.postdicionary= {'fiberform':'M1','submit':'Continue'}
@@ -120,22 +120,96 @@ class BuildDNACommand(MVCommand):
         if "fiberform" in kw :
             fiberform=kw["fiberform"]
         if not len(path) : return
-        
+
         self.postdicionary = {'seq': seq, 'dnaform':fiberform,'fiberform':fiberform,'submit':'Build',"path":path,"block":False}
         #ask the server to build the DNA structure
         r = requests.post("http://w3dna.rutgers.edu/rebuild/regseq", data=self.postdicionary)
         #get the builded DNA from the server temporar path
-        pathTo=None 
+        pathTo=None
         if "path" in kw:
-            pathTo=kw["path"]        
-        name,pathTo=self.retrieveDNAPDBonServer(path,name=fname,pathTo=pathTo)  
+            pathTo=kw["path"]
+        name,pathTo=self.retrieveDNAPDBonServer(path,name=fname,pathTo=pathTo)
         if name is None :
             print ("Error whle fetching the builded DNA")
         if "load" in kw :
             if kw["load"]:
                 self.vf.readMolecule(pathTo+name)#is this will ensureepmv to update?
         return name, pathTo
-        
+
+    def retrievePDB(self,path,name=None,pathTo=None):
+        done = False
+        cut= 0
+        dnafile = None
+        print ("http://web.x3dna.org/"+path[1:-1]+"/main_view01.pdb")
+        if name is None :
+            name = "s0.pdb"
+        if pathTo is None :
+            pathTo = self.vf.rcFolder+os.sep+"pdbcache"+os.sep
+        tmpFileName =  pathTo+name
+        while not done :
+            if cut > 100 :
+                break
+            try :
+                urllib.urlretrieve("http://web.x3dna.org/"+path[1:-1]+"/main_view01.pdb", tmpFileName)
+                done = True
+            except :
+                cut+=1
+                continue
+        if done :
+            return name,pathTo
+        return None,None
+
+
+    def query_server(self, fname, seq, **kw):
+        print( fname)
+        print("%s" % seq)
+        fiberform=self.options["fiberform"]
+        if "fiberform" in kw :
+            fiberform=kw["fiberform"]
+        self.postdicionary= {'fiberform':fiberform,'submit':"use this model"}
+        r = requests.post("http://web.x3dna.org/fibermodel/fiberch", data=self.postdicionary)
+        path_id = r.text.find('name="path"')
+        path = ""
+        if path_id != -1 :
+            path = r.text[path_id:].split()[1].split("=")[1]
+
+        self.postdicionary = {'num':'1',
+                              'seq': seq,
+                              'dnaform':fiberform,
+                              'fiberform':fiberform,
+                              "path":path,
+                              "submit":"Build"}
+        r = requests.post("http://web.x3dna.org/fibermodel/progbar", data=self.postdicionary)
+
+        self.postdicionary = {'num':'1',
+                              'seq': seq,
+                              'dnaform':fiberform,
+                              'fiberform':fiberform,
+                              "path":path}
+        r = requests.post("http://web.x3dna.org/fibermodel/paulingseq", data=self.postdicionary)
+
+        self.postdicionary = {'num':'1',
+                              'seq': seq,
+                              'dnaform':fiberform,
+                              'fiberform':fiberform,
+                              "path":path,
+                              "block":False}
+        r = requests.post("http://web.x3dna.org/fibermodel/regseq", data=self.postdicionary)
+        pathTo=None
+        if "path" in kw:
+            pathTo=kw["path"]
+        #http://web.x3dna.org/data/usr/201905/192_26_252_1/301215/rebuild/main_view01.pdb
+        name,pathTo=self.retrievePDB(path,name=fname,pathTo=pathTo)
+        if name is None :
+            print ("Error whle fetching the builded DNA")
+        if "load" in kw :
+            if kw["load"]:
+                self.vf.readMolecule(pathTo+name)#is this will ensureepmv to update?
+        return name, pathTo
+
+    def doit(self, fname, seq, **kw):
+        return self.query_server(fname, seq, **kw)
+
     def retrieveDNAPDBonServer(self,path,name=None,pathTo=None):
         done = False
         cut= 0
@@ -144,10 +218,10 @@ class BuildDNACommand(MVCommand):
         if name is None :
             name = "s0.pdb"
         if pathTo is None :
-            pathTo = self.vf.rcFolder+os.sep+"pdbcache"+os.sep 
-        tmpFileName =  pathTo+name   
+            pathTo = self.vf.rcFolder+os.sep+"pdbcache"+os.sep
+        tmpFileName =  pathTo+name
         while not done :
-            if cut > 100 :        
+            if cut > 100 :
                 break
             try :
 #                dnafile = urllib2.urlopen("http://w3dna.rutgers.edu/data/usr/"+path+"/rebuild/s0.pdb")
@@ -155,7 +229,7 @@ class BuildDNACommand(MVCommand):
                 urllib.urlretrieve("http://w3dna.rutgers.edu/"+path[1:-1]+"/s0.pdb", tmpFileName)
                 done = True
             except :
-                cut+=1        
+                cut+=1
                 continue
         if done :
             #should download in the  rcFolder
@@ -175,17 +249,17 @@ class BuildDNACommand(MVCommand):
         """
         status = self.doitWrapper(name,seq,**kw)#apply( self.doitWrapper, (name, seq), kw)
         return status
-        
+
 commandList = [
-    {'name':'buildDNA', 'cmd':BuildDNACommand(), 'gui':None}, 
+    {'name':'buildDNA', 'cmd':BuildDNACommand(), 'gui':None},
     ]
 
 def initModule(viewer):
     for dict in commandList:
         viewer.addCommand(dict['cmd'], dict['name'], dict['gui'])
 
-        
-#        
+
+#
 #payload = {'fiberform':'M1','submit':'Continue'}
 #r = requests.post("http://w3dna.rutgers.edu/rebuild/fiberch", data=payload)
 ##parse the path <input type="hidden" name="path" value="data/usr/137_131_108_37/rebuild" />
@@ -215,13 +289,13 @@ def initModule(viewer):
 #cut= 0
 #while not done :
 #    print cut
-#    if cut > 100 :        
+#    if cut > 100 :
 #        break
 #    try :
 #        dnafile = urllib2.urlopen("http://w3dna.rutgers.edu/data/usr/137_131_108_37/rebuild/s0.pdb")
 #        done = True
 #    except :
-#        cut+=1        
+#        cut+=1
 #        continue
 #if done :
 #    output = open('s0.pdb','w')

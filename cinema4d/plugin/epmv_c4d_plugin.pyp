@@ -76,6 +76,8 @@ else :
         #exit()
 #add to syspath
 sys.path.append(MGL_ROOT+'/MGLToolsPckgs')
+import os
+os.environ['PATH'] += MGL_ROOT+'/MGLToolsPckgs'
 
 import c4d
 from c4d import plugins
