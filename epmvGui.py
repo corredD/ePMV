@@ -216,7 +216,7 @@ class ParameterModeller(uiadaptor):
             "real-time": self._addElemt(name="real-time", width=100, height=10,
                                         action=self.setRealTime, type="checkbox", icon=None,
                                         variable=self.addVariable("int", 0)),
-            'display': self._addElemt(name="display", width=100, height=10,
+            'moddisplay': self._addElemt(name="moddisplay", width=100, height=10,
                                       action=None, type="checkbox", icon=None,
                                       variable=self.addVariable("int", 0))
         }
@@ -263,7 +263,7 @@ class ParameterModeller(uiadaptor):
         self._layout.append(frame)
 
         # general options
-        self._layout.append([self.CHECKBOXS["store"], self.CHECKBOXS["display"]])
+        self._layout.append([self.CHECKBOXS["store"], self.CHECKBOXS["moddisplay"]])
         #        self._layout.append([self.CHECKBOXS["real-time"],self.COMB_BOX["rtType"]])
         #        self._layout.append([self.LABEL_ID["rtstep"],self.NUMBERS["rtstep"]])
         #        self._layout.append([self.BTN["update coordinate"],self.COMB_BOX["sobject"]])

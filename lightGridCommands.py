@@ -63,8 +63,8 @@ except :
 #import Pmw
 Pmw = None
 #from PIL import Image, ImageTk
-import Image
-import ImageTk
+from PIL import Image
+from PIL import ImageTk
 from DejaVu.Geom import Geom
 from ViewerFramework.VFCommand import Command, CommandGUI
 from mglutil.gui import widgetsOnBackWindowsCanGrabFocus

@@ -34,7 +34,8 @@ try :
 	import tkinter
 except :
     import Tkinter as tkinter
-import Pmw, ImageTk
+import Pmw
+from PIL import ImageTk
 
 from Pmv.mvCommand import MVCommand
 from ViewerFramework.VFCommand import CommandGUI
